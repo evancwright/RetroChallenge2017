@@ -1,0 +1,1538 @@
+                00001 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00002 ;Wumpus.asm
+                00003 ;8080 CP/M version of Hunt the Wumpus
+                00004 ;Evan Wright 2017
+                00005 ;Assemble with Z80asm -com wumpus.asm
+                00006 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00007         ; IOBYTE equ
+    = 0005      00008 BDOS EQU 5
+    = 0001      00009 RCONF EQU 1
+    = 0003      00010 A_READ EQU 3
+    = 000B      00011 C_STAT EQU 11
+    = 0006      00012 C_RAWIO EQU 6
+    = 0002      00013 WCONF EQU 2  ; "write to console function"
+    = 000A      00014 C_READSTR EQU 0Ah
+    = 000D      00015 CR EQU 0Dh
+    = 000A      00016 LF EQU 0Ah
+    = 0001      00017 WUMPUS_BIT EQU 1
+    = 0002      00018 NEXTTOWUMPUS_BIT EQU 2
+    = 0004      00019 BAT_BIT EQU 4
+    = 0008      00020 NEXTTOBATS_BIT EQU 8
+    = 0010      00021 PIT_BIT EQU 16
+    = 0020      00022 NEXTTOPIT_BIT EQU 32
+    = 0031      00023 S_SYSVAR EQU 31h ; 16 bit CP/M only :(
+                00024 
+                00025 
+                00026         ORG 100H  ; CP/M
+                00027 ;       ORG 5200H ; TRS-80
+                00028 START
+                00029 
+                00030 *MOD
+                00031 main
+                00032         ;save the stack ptr
+0100  ED738D07  00033         ld (stacksave),sp
+0104  E5        00034         push hl
+                00035         
+0105  214D07    00036         ld hl,welcome
+0108  CD6506    00037         call printstrcr
+010B  216907    00038         ld hl,author
+010E  CD6506    00039         call printstrcr
+0111  CD6C06    00040         call newline
+0114  215809    00041         ld hl,helpprompt
+0117  CD6506    00042         call printstrcr 
+011A  CD7B06    00043         call get_char   
+011D  FE79      00044         cp 'y'
+011F  CC5B04    00045         call z,print_help
+0122  CDB901    00046         call set_up_game
+                00047 
+                00048 $ipA    
+0125  CD0F02    00049         call look
+0128  218709    00050         ld hl,entercmd
+012B  CD6506    00051         call printstrcr
+012E  219809    00052         ld hl,cmdprompt
+0131  CD6506    00053         call printstrcr
+0134  CD7B06    00054         call get_char
+0137  FE71      00055         cp 'q'
+0139  CA4E01    00056         jp z,$xA
+013C  FE73      00057         cp 's'
+013E  CC9102    00058         call z,handle_shoot
+0141  FE6D      00059         cp 'm'
+0143  CC6C02    00060         call z,handle_move
+0146  FE64      00061         cp 'd'
+0148  CC5405    00062         call z,dump_board
+014B  C32501    00063         jp $ipA
+014E  21B709    00064 $xA     ld hl,bye
+0151  CD6506    00065         call printstrcr
+0154  ED7B8D07  00066         ld sp,(stacksave)
+0158  E1        00067         pop hl 
+                00068 quit    
+0159  C30000    00069         jp 0
+                00070  
+                00071  
+                00072 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00073 ;This subroutine set the flag in a room then sets the flags in the adjacent rooms
+                00074 ;a contains room number to set flag for
+                00075 ;c contains the bit flag to OR onto the room
+                00076 ;1 = wumpus | 2 = next to wumpus | 4 = bat | 8 = next to bats | 16 = pit | 32 = next to pit
+                00077 *MOD
+                00078 set_room_flag:
+                00079     
+                00080     ;convert it to a ptr
+015C  F5        00081     push af 
+                00082         
+015D  C5        00083     push bc
+015E  4F        00084     ld c, a
+015F  CD2002    00085     call get_room_ptr ; takes # in c, puts addr in hl
+0162  C1        00086     pop bc
+                00087         
+0163  E5        00088     push hl; save room address
+                00089     
+0164  1600      00090     ld d, 0
+0166  1E05      00091     ld e, 5; add 5 bytes to get the flags byte
+0168  19        00092     add hl, de
+                00093     
+                00094     ;set the requested bit
+0169  7E        00095     ld a,(hl)
+016A  B1        00096     or c
+016B  77        00097     ld (hl),a; store the bat bit
+                00098     
+                00099     ;shift the bit left and apply the flag to the adjacent rooms
+016C  CB21      00100     sla c
+                00101     
+016E  E1        00102         pop hl; restore room address for subroutine
+                00103     
+016F  F1        00104         pop af ; restore room
+                00105         
+                00106         ;
+                00107 ;    call set_adjacent_room_flags
+                00108         
+0170  41        00109     ld b,c ; save flag
+0171  4F        00110         ld c,a
+0172  CD2002    00111         call get_room_ptr
+0175  48        00112         ld c,b ; mask back in c
+0176  23        00113     inc hl
+0177  23        00114         inc hl
+0178  7E        00115         ld a,(hl) ; get neighbor 1
+0179  CD8701    00116         call set_flag_in_adjacent
+017C  23        00117         inc hl
+017D  7E        00118         ld a,(hl)  ; get neighbor 1
+017E  CD8701    00119         call set_flag_in_adjacent
+0181  23        00120         inc hl
+0182  7E        00121         ld a,(hl)  ; get neighbor 1
+0183  CD8701    00122         call set_flag_in_adjacent
+0186  C9        00123     ret
+                00124 
+                00125 ;set a 'next to' flag in a room
+                00126 ;a contains room
+                00127 ;c contains bit mask
+                00128 *MOD 
+                00129 set_flag_in_adjacent
+0187  F5        00130         push af
+0188  E5        00131         push hl
+0189  C5        00132         push bc
+018A  32CF06    00133         ld (curRoom),a
+018D  CD3402    00134         call set_room_addr
+0190  C1        00135         pop bc
+0191  CDEC03    00136         call get_flags_byte
+0194  B1        00137         or c
+0195  2AD006    00138         ld hl,(currroomaddr)
+0198  23        00139         inc hl
+0199  23        00140         inc hl
+019A  23        00141         inc hl
+019B  23        00142         inc hl
+019C  23        00143         inc hl
+019D  77        00144         ld (hl),a
+019E  E1        00145         pop hl
+019F  F1        00146         pop af
+01A0  C9        00147         ret
+                00148         
+                00149 *MOD    
+                00150 ;This subroutine set the flags adjacent in the room adjacent to one that has bats
+                00151 ;addr of room is in hl
+                00152 ;c = value to OR onto the flags
+                00153 set_adjacent_room_flags:
+                00154     ;add 2 bytes to room addr to get to the adjacent rooms
+01A1  23        00155     inc hl
+01A2  23        00156     inc hl
+                00157     ;loop three times
+01A3  0603      00158     ld b, 3 ; loop counter
+                00159 flag_loop:
+01A5  E5        00160     push hl; save addr of adjacent room byte
+01A6  C5        00161     push bc; save loop counter
+01A7  4E        00162     ld c,(hl);get the number of the room that is adjacent to hl
+                00163     
+                00164     ;convert it to a ptr
+01A8  CD2002    00165     call get_room_ptr ; addr in hl
+                00166     
+01AB  1600      00167     ld d,0;add five bytes to get the flags offset
+01AD  1E05      00168     ld e,5
+01AF  19        00169     add hl,de
+01B0  7E        00170     ld a,(hl) ; get the flags byte
+01B1  C1        00171     pop bc ; restore loop counter or bit to OR
+01B2  B1        00172     or c ; set bit
+01B3  77        00173     ld (hl), a ;store it back
+01B4  E1        00174     pop hl ;restore addr of adjacent room byte
+                00175     
+01B5  23        00176     inc hl ; increment src add
+01B6  10ED      00177     djnz flag_loop
+01B8  C9        00178     ret
+                00179         
+                00180 *MOD
+                00181 set_up_game:
+                00182         
+01B9  21C007    00183         ld hl,setuptxt
+01BC  CD6506    00184         call printstrcr
+                00185         
+01BF  CD4804    00186         call clear_all_flags
+                00187 
+01C2  21D807    00188         ld hl,wumpuslurk
+01C5  CD6506    00189         call printstrcr
+                00190         
+                00191 
+                00192 ;    ld a,2;
+01C8  CDBA03    00193     call random_20 ; put random in a
+01CB  0E01      00194     ld c,WUMPUS_BIT; wumpus bit
+01CD  CD5C01    00195     call set_room_flag  ; room in a, flag in c
+                00196 
+01D0  210308    00197         ld hl,pitsforming
+01D3  CD6506    00198         call printstrcr
+                00199         
+                00200 ;    call random_20 ; put random in a
+                00201     
+                00202 ;    ld a,15;  
+01D6  CDBA03    00203         call random_20 ; put random in a
+01D9  0E10      00204     ld c,PIT_BIT;pit bit
+01DB  CD5C01    00205         call set_room_flag  ; room in c, flag in a
+                00206 
+                00207 ;    call random_20 ; put random in a
+                00208 ;    ld a, 16;  room#
+01DE  CDBA03    00209     call random_20 ; put random in a 
+01E1  0E10      00210     ld c, PIT_BIT;  pit bit
+01E3  CD5C01    00211     call set_room_flag  ; room in c, flag in a
+                00212 
+01E6  213D08    00213         ld hl,batsroosting
+01E9  CD6506    00214         call printstrcr
+                00215     
+                00216 ;
+                00217 ;       ld a,4; 
+01EC  CDBA03    00218     call random_20 ; put random in a
+01EF  0E04      00219      ld c,BAT_BIT; bat bit
+01F1  CD5C01    00220          call set_room_flag  ; room in c, flag in a
+                00221 
+                00222 ;    ld a,2; 
+01F4  CDBA03    00223     call random_20 ; put random in a
+01F7  0E04      00224     ld c,BAT_BIT; bat bit
+01F9  CD5C01    00225         call set_room_flag  ; room in c, flag in a
+                00226   
+                00227       ;put player at start
+                00228 ;    ld a,1
+01FC  CDBA03    00229     call random_20 ; put random in a
+01FF  32CF06    00230     ld (curRoom),a
+0202  CD3402    00231     call set_room_addr
+                00232 
+                00233 
+0205  216E08    00234         ld hl,done
+0208  CD6506    00235         call printstrcr
+020B  CD6C06    00236         call newline
+020E  C9        00237     ret 
+                00238         
+                00239 look
+020F  CDB404    00240         call print_current_room;
+0212  CDF104    00241     call print_tunnels; calls scroll
+0215  CDF903    00242     call print_flags;
+0218  C9        00243         ret
+                00244         
+                00245 
+                00246 *MOD
+                00247 promptcommand
+0219  219809    00248         ld hl,cmdprompt
+021C  CD6506    00249         call printstrcr
+021F  C9        00250         ret
+                00251         
+                00252 ;compute the pointer for the room
+                00253 ;room number in register c
+                00254 ;address returned in hl
+                00255 *MOD
+                00256 get_room_ptr:
+0220  F5        00257     push af
+0221  C5        00258     push bc
+0222  D5        00259     push de
+0223  0D        00260     dec c
+0224  1600      00261     ld d, 0
+0226  59        00262     ld e, c ;room number
+0227  3E06      00263     ld a, 6 ; size of room data
+0229  CDD303    00264     call DE_Times_A ; result in HL
+022C  11D506    00265     ld de,room1
+022F  19        00266     add hl,de
+0230  D1        00267     pop de
+0231  C1        00268     pop bc
+0232  F1        00269     pop af
+0233  C9        00270     ret 
+                00271 
+                00272         
+                00273 ;this subrountine converts the room number
+                00274 ;to its address
+                00275 ;the address is returned in hl and stored 
+                00276 ;in the variable currroomaddr
+                00277 *MOD
+                00278 set_room_addr
+0234  F5        00279     push af
+0235  C5        00280     push bc
+0236  D5        00281     push de
+0237  E5        00282     push hl
+0238  3ACF06    00283     ld a,(curRoom) ; room number (1 based)
+023B  3D        00284     dec a
+023C  1600      00285     ld d, 0
+023E  5F        00286     ld e, a
+023F  3E06      00287     ld a, 6; size of room in bytes (2 byte name, 3 rooms, 1 flags)
+0241  CDD303    00288     call DE_Times_A ; result in hl now add it to base
+0244  01D506    00289     ld bc, room1; load base addr
+0247  09        00290     add hl, bc ; add offset to base
+                00291     
+0248  E5        00292     push hl ;switch hl, bc'
+0249  C5        00293     push bc
+024A  E1        00294     pop hl
+024B  C1        00295     pop bc
+024C  21D006    00296     ld hl,currroomaddr
+024F  71        00297     ld (hl),c
+0250  23        00298     inc hl
+0251  70        00299     ld (hl),b
+0252  E1        00300     pop hl
+0253  D1        00301     pop de
+0254  C1        00302     pop bc
+0255  F1        00303     pop af
+0256  C9        00304     ret
+                00305         
+                00306 *MOD    
+                00307 ;this subroutine checks if the player can go in specified direction
+                00308 ;c - the room to move to
+                00309 validate_move:
+0257  2AD006    00310     ld hl, (currroomaddr)
+025A  23        00311     inc hl
+025B  23        00312     inc hl
+025C  0603      00313     ld b, 3
+                00314 validate_move_loop:    
+025E  7E        00315     ld a, (hl)
+025F  B9        00316     cp c
+0260  CA6902    00317     jp z, valid_move
+0263  23        00318     inc hl
+0264  10F8      00319     djnz validate_move_loop
+0266  3E00      00320     ld a, 0
+0268  C9        00321     ret
+                00322 valid_move:
+0269  3E01      00323     ld a, 1
+026B  C9        00324     ret
+                00325 
+                00326 *MOD
+                00327 handle_move
+026C  213309    00328         ld hl,whichroom
+026F  CD6506    00329         call printstrcr
+0272  CD8F06    00330         call readline
+0275  CD6204    00331     call cpm_atoi ; result in bc
+0278  CD5702    00332     call validate_move ; expects room in c
+027B  FE00      00333     cp 0
+027D  CA8A02    00334     jp z,invalid_room
+0280  79        00335     ld a, c
+0281  32D206    00336     ld (roomentry), a
+0284  CDB602    00337         call move_player
+0287  C39002    00338         jp $xJ
+                00339 invalid_room
+028A  217408    00340     ld hl,baddir
+028D  CD6506    00341     call printstrcr
+0290  C9        00342 $xJ ret 
+                00343         
+                00344         
+                00345 *MOD
+                00346 handle_shoot
+0291  213309    00347         ld hl,whichroom
+0294  CD6506    00348         call printstrcr
+0297  CD8F06    00349         call readline
+029A  CD6204    00350     call cpm_atoi ; result in bc
+029D  CD5702    00351     call validate_move ; expects room in c
+02A0  FE00      00352     cp 0
+02A2  CAAF02    00353     jp z,bad_room
+02A5  79        00354     ld a, c
+02A6  32D206    00355     ld (roomentry),a
+02A9  CDC302    00356     call shoot_arrow
+02AC  C3B502    00357     jp $xK
+                00358 bad_room
+02AF  217408    00359     ld hl,baddir
+02B2  CD6506    00360     call printstrcr
+02B5  C9        00361 $xK ret 
+                00362         
+                00363         
+                00364 *MOD    
+                00365 ;moves the player to the selected room
+                00366 ;the selection will be a valid choice by now
+                00367 move_player: 
+02B6  3AD206    00368     ld a,(roomentry)
+02B9  32CF06    00369     ld (curRoom),a
+02BC  CD3402    00370     call set_room_addr
+02BF  CD1C03    00371     call handle_hazards
+02C2  C9        00372     ret
+                00373 
+                00374 ;shoots the arrow, the target
+                00375 ;room is valid  
+                00376 *MOD 
+                00377 shoot_arrow      
+02C3  21FF09    00378     ld hl,shootarrowtxt
+02C6  CD6506    00379     call printstrcr
+                00380 
+                00381         ;delay here would be cool
+                00382         
+                00383     ;was the wumpus in that room
+02C9  3AD206    00384     ld a,(roomentry)
+02CC  4F        00385     ld c,a
+02CD  CD2002    00386     call get_room_ptr ; result in hl
+02D0  110500    00387     ld de,5 ; 5 byte offset to get flags
+02D3  19        00388     add hl,de
+02D4  7E        00389     ld a,(hl) ; get flags bytes
+02D5  E601      00390     and WUMPUS_BIT
+02D7  C2FF02    00391     jp nz,arrow_hit
+                00392 arrow_miss:
+02DA  214C0A    00393     ld hl,playereaten0
+02DD  CD6506    00394     call printstrcr
+02E0  21530A    00395     ld hl,playereaten1
+02E3  CD6506    00396     call printstrcr
+02E6  218A0A    00397     ld hl,playereaten2
+02E9  CD6506    00398     call printstrcr  
+02EC  3AD406    00399         ld a,(wumpusscore)
+02EF  3C        00400         inc a
+02F0  32D406    00401         ld (wumpusscore),a
+02F3  21EB09    00402         ld hl,youhavedied
+02F6  CD6506    00403         call printstrcr
+02F9  CDC104    00404         call play_again 
+02FC  C31B03    00405     jp $xM
+                00406 arrow_hit:
+02FF  21090A    00407     ld hl,thwacktxt
+0302  CD6506    00408     call printstrcr
+0305  21E90A    00409     ld hl,victorymessage1
+0308  CD6506    00410     call printstrcr
+030B  21260B    00411         ld hl,victorymessage2
+030E  CD6506    00412     call printstrcr
+0311  3AD306    00413         ld a,(playerscore)
+0314  3C        00414         inc a
+0315  32D306    00415         ld (playerscore),a
+0318  CDC104    00416         call play_again 
+                00417 $xM     
+031B  C9        00418     ret
+                00419  
+                00420 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    
+                00421 ;this subroutine checks for hazards in the room the player
+                00422 ;has just moved into
+                00423 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00424 *MOD
+                00425 handle_hazards:    
+031C  CDEC03    00426     call get_flags_byte; a
+031F  328C07    00427     ld (flagsSav),a ; save flags
+                00428         
+                00429     ;check for wumpus
+0322  E601      00430     and WUMPUS_BIT
+0324  CA4E03    00431     jp z,check_for_pit
+                00432     
+                00433     ;wumpus death
+0327  21110A    00434     ld hl,roartxt
+032A  CD6506    00435     call printstrcr
+032D  21170A    00436     ld hl,playereaten
+0330  3AD406    00437         ld a,(wumpusscore)
+0333  3C        00438         inc a
+0334  32D406    00439         ld (wumpusscore),a
+0337  CD6506    00440     call printstrcr
+033A  21EB09    00441         ld hl,youhavedied
+033D  CD6506    00442         call printstrcr
+0340  CDC104    00443         call play_again
+0343  FE79      00444         cp 'y'
+0345  CA5901    00445         jp z,quit
+0348  CDB901    00446         call set_up_game
+034B  C37903    00447     jp $xN 
+                00448 check_for_pit:    
+                00449     ;check for pit
+034E  3A8C07    00450         ld a,(flagsSav)
+0351  E610      00451     and PIT_BIT
+0353  CA6B03    00452     jp z,check_for_bats
+                00453     
+0356  CD9103    00454     call animate_pit_fall
+                00455         ;+1 to wumpus
+0359  3AD406    00456         ld a,(wumpusscore)
+035C  3C        00457         inc a
+035D  32D406    00458         ld (wumpusscore),a
+                00459 
+0360  CDC104    00460         call play_again 
+0363  FE79      00461         cp 'y'
+0365  CA5901    00462         jp z,quit
+0368  C37903    00463         jp $xN
+                00464 check_for_bats:
+                00465     ;check for bats
+036B  3A8C07    00466     ld a,(flagsSav) ; reset flags
+036E  E604      00467     and BAT_BIT
+0370  CA7903    00468     jp z,player_safe
+                00469     
+                00470     ;player needs to be moved
+0373  CD7A03    00471     call fly_player_to_new_room 
+0376  CD1C03    00472     call handle_hazards;  ;after move, room needs to be checked for pits/wumpus
+                00473 player_safe: 
+0379  C9        00474 $xN ret
+                00475 
+                00476         
+                00477 *MOD
+                00478 fly_player_to_new_room
+037A  F5        00479         push af
+037B  C5        00480         push bc
+037C  D5        00481         push de
+037D  E5        00482         push hl
+037E  21C308    00483         ld hl,batmove
+0381  CD6506    00484         call printstrcr
+                00485 ;       call random_20
+0384  3E14      00486         ld a,20
+0386  32CF06    00487         ld (curRoom),a  
+0389  CD3402    00488         call set_room_addr
+                00489 ;       call print_room_label
+038C  E1        00490         pop hl
+038D  D1        00491         pop de
+038E  C1        00492         pop bc
+038F  F1        00493         pop af
+0390  C9        00494         ret
+                00495         
+                00496 *MOD
+                00497 animate_pit_fall
+0391  06FF      00498         ld b,255
+0393  C5        00499 $lpP push bc
+0394  1E41      00500         ld e,'A'
+0396  0E02      00501         ld c,WCONF
+0398  CD0500    00502         call BDOS
+039B  C1        00503         pop bc
+039C  C5        00504         push bc
+039D  01FFFF    00505         ld bc,0ffffh
+03A0  0B        00506 $ilP dec bc 
+03A1  78        00507         ld a,b
+03A2  FE00      00508         cp 0
+03A4  C2A003    00509         jp nz,$ilP
+03A7  79        00510         ld a,c
+03A8  FE00      00511         cp 0
+03AA  C2A003    00512         jp nz,$ilP
+03AD  C1        00513         pop bc
+03AE  10E3      00514         djnz $lpP
+03B0  CD6C06    00515         call newline
+03B3  21BC09    00516         ld hl,pitdeath
+03B6  CD6506    00517         call printstrcr
+03B9  C9        00518         ret
+                00519         
+                00520 ; returns 1-20 (inclusive) in 'a'
+                00521 *MOD
+                00522 random_20
+03BA  C5        00523         push bc
+03BB  0613      00524         ld b,19d  ; 0-19
+03BD  CDD905    00525         call rmod
+                00526 ;       ld a,015h ;21
+03C0  3C        00527         inc a ;1-20
+03C1  FE00      00528         cp 0
+03C3  CABE0D    00529         jp z,badrand
+03C6  FE15      00530         cp 21d
+03C8  DAD103    00531         jp c,$xQ
+03CB  21BE0D    00532         ld hl,badrand
+03CE  CD6506    00533         call printstrcr
+03D1  C1        00534 $xQ     pop bc
+03D2  C9        00535         ret
+                00536         
+                00537 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00538 ;Inputs:
+                00539 ;     DE and A are factors
+                00540 ;Outputs:
+                00541 ;     A is not changed
+                00542 ;     B is 0
+                00543 ;     C is not changed
+                00544 ;     DE is not changed
+                00545 ;     HL is the product
+                00546 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00547 *MOD 
+                00548 DE_Times_A:
+                00549 
+                00550 ;Time:
+                00551 ;     342+6x
+                00552 ;
+03D3  0608      00553      ld b,8          ;7           7
+03D5  210000    00554      ld hl,0         ;10         10
+03D8  29        00555        add hl,hl     ;11*8       88
+03D9  07        00556        rlca          ;4*8        32
+03DA  3001      00557        jr nc,$+3     ;(12|18)*8  96+6x
+03DC  19        00558          add hl,de   ;--         --
+03DD  10F9      00559        djnz $-5      ;13*7+8     99
+03DF  C9        00560      ret             ;10         10    
+                00561 Multiply:                        ; this routine performs the operation HL=D*E
+03E0  210000    00562   ld hl,0                        ; HL is used to accumulate the result
+03E3  7A        00563   ld a,d                         ; checking one of the factors; returning if it is zero
+03E4  B7        00564   or a
+03E5  C8        00565   ret z
+03E6  42        00566   ld b,d                         ; one factor is in B
+03E7  54        00567   ld d,h                         ; clearing D (H is zero), so DE holds the other factor
+                00568 MulLoop:                         ; adding DE to HL exactly B times
+03E8  19        00569   add hl,de
+03E9  10FD      00570   djnz MulLoop
+03EB  C9        00571   ret
+                00572         
+                00573 get_flags_byte:
+03EC  D5        00574         push de
+03ED  E5        00575         push hl
+03EE  2AD006    00576     ld hl,(currroomaddr) ; load addr of byte with tunnel
+03F1  110500    00577     ld de,5 ; 5 byte offset
+03F4  19        00578     add hl,de
+03F5  7E        00579     ld a,(hl) ; get flags bytes
+03F6  E1        00580         pop hl
+03F7  D1        00581         pop de
+03F8  C9        00582     ret
+                00583         
+                00584         
+                00585 *MOD 
+                00586 print_flags:
+                00587 ;       ld a,(curRoom)
+                00588 ;       call set_room_addr
+03F9  CDEC03    00589     call get_flags_byte
+03FC  328C07    00590         ld (flagsSav),a   ;save it
+03FF  E620      00591     and NEXTTOPIT_BIT
+0401  FE20      00592         cp NEXTTOPIT_BIT
+0403  C20C04    00593         jp nz,nopit;
+0406  210F09    00594     ld hl,pitwarning
+0409  CD6506    00595     call printstrcr
+                00596 nopit:
+040C  3A8C07    00597         ld a,(flagsSav)
+040F  E608      00598     and NEXTTOBATS_BIT
+0411  FE08      00599         cp NEXTTOBATS_BIT
+0413  C21C04    00600         jp nz,nobats;
+0416  219308    00601     ld hl,batswarning
+0419  CD6506    00602     call printstrcr
+                00603 nobats:
+041C  3A8C07    00604         ld a,(flagsSav)
+041F  E602      00605     and NEXTTOWUMPUS_BIT; bit 2 = next to wumpus
+0421  FE02      00606     cp NEXTTOWUMPUS_BIT
+0423  C22C04    00607         jp nz,nowumpus;
+0426  212109    00608     ld hl,wumpuswarning
+0429  CD6506    00609     call printstrcr
+                00610 nowumpus:
+042C  C9        00611     ret
+                00612 
+                00613 
+                00614 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00615 ;take char in c
+                00616 ;puts code into c
+                00617 ;c = $FF if char is invalid
+                00618 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00619 char_to_num:
+042D  F5        00620     push af
+042E  D5        00621     push de
+042F  E5        00622     push hl
+                00623          
+0430  1E30      00624     ld e,30h   ; subtract off $1C to convert it to a number
+0432  79        00625     ld a,c     ; load char into accumulator
+0433  93        00626     sub e   ;subract '0' from char
+0434  FA4204    00627     jp m, badchar  ; char was less than "0"
+                00628     
+                00629     ; char is still loaded into d
+                00630     ; load char code for "9"
+                00631     ; subtract that from the char
+0437  57        00632     ld d,a;
+0438  3E39      00633     ld a,39h ; char code for 9
+043A  92        00634     sub d;
+043B  FA4204    00635     jp m,badchar; char was greater than "9"
+                00636     
+                00637     ;char (in d) is valid and is 0-9
+043E  4A        00638     ld c,d      ;
+043F  C34404    00639     jp goodchar
+                00640 badchar:
+0442  0EFF      00641     ld c,0ffh
+                00642 goodchar:
+0444  E1        00643     pop hl
+0445  D1        00644     pop de
+0446  F1        00645     pop af
+0447  C9        00646     ret
+                00647 
+                00648 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00649 ;Sets all room flags back to 0 (so the flags don't accumulate)
+                00650 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00651 clear_all_flags
+                00652     
+0448  3E00      00653     ld a,0h     
+044A  21D506    00654     ld hl,room1
+044D  010500    00655     ld bc,5h
+0450  09        00656     add hl, bc
+                00657   
+0451  110600    00658     ld de,6
+0454  0614      00659     ld b,20 ; # of rooms
+                00660 clear_flags_loop
+                00661     ;add 6 to get the addr of the next byte
+0456  77        00662     ld (hl),a ; zero out the byte
+0457  19        00663     add hl,de ; jump ahead six bytes to the next flags byte
+0458  10FC      00664     djnz clear_flags_loop
+                00665      
+045A  C9        00666     ret 
+                00667 
+                00668 *MOD
+                00669 print_help
+045B  21560B    00670         ld hl,help
+045E  CD6506    00671         call printstrcr
+0461  C9        00672         ret
+                00673 
+                00674 *MOD
+                00675 cpm_atoi
+0462  3AA506    00676         ld a,(inbuf+1)
+0465  4F        00677         ld c,a ; atoi expects num chars in c`
+0466  47        00678         ld b,a ; loop counter
+0467  21A506    00679         ld hl,inbuf+1
+                00680 $lpU    
+046A  23        00681         inc hl
+046B  10FD      00682         djnz $lpU ;
+                00683         
+                00684         ;hl now points to rightmost char
+                00685         ;c contains size of buffer
+046D  CD7104    00686         call atoi
+0470  C9        00687         ret
+                00688         
+                00689 ;converts text in a buffer to an integer
+                00690 ;this function takes the address of the rightmost
+                00691 ;char
+                00692 ;hl address of rightmost byte
+                00693 ;c number of bytes in the buffer
+                00694 ;result is returned in bc
+                00695 atoi:
+                00696     ;bc will be the sum
+                00697     ;de will be the place value (power of 10)
+                00698     ;hl will contain the src address
+                00699     ;a will be loop counter
+0471  79        00700     ld a, c    
+0472  010000    00701     ld bc,0000
+0475  110100    00702     ld de,0001
+                00703 atoiloop:
+0478  F5        00704     push af ; save loop counter
+0479  E5        00705     push hl ; save src addr (free up hl)
+047A  C5        00706     push bc ; save sum (free up bc)
+                00707     
+047B  4E        00708     ld c, (hl)
+047C  CD2D04    00709     call char_to_num;
+047F  79        00710     ld a, c
+0480  FEFF      00711     cp 0FFh
+0482  CA9F04    00712     jp z, invalid
+                00713     
+                00714     ;multiply de * the place value (de)
+0485  D5        00715     push de
+0486  CDA304    00716     call Mul8 ; HL=DE*A
+0489  D1        00717     pop de
+                00718     
+                00719     ;move temp to bc
+048A  44        00720     ld b, h
+048B  4D        00721     ld c, l
+                00722     
+                00723     ;add to the sum
+048C  E1        00724     pop hl ; restore sum to hl
+048D  09        00725     add hl, bc
+048E  44        00726     ld b, h ; copy sum back into bc
+048F  4D        00727     ld c, l
+                00728     
+                00729     ;multiply the place value x 10
+0490  3E0A      00730     ld a, 10
+0492  CDA304    00731     call Mul8 ; HL=DE*A
+0495  54        00732     ld d, h
+0496  5D        00733     ld e, l
+                00734     
+0497  E1        00735     pop hl ; restore addr
+0498  2B        00736     dec hl
+                00737     
+0499  F1        00738     pop af ; restore loop counter
+049A  3D        00739     dec a
+049B  C27804    00740     jp nz, atoiloop;
+                00741 
+                00742     ;finished loop - number was valid
+                00743   ;  ld hl, $01
+                00744  ;   push hl
+049E  C9        00745     ret
+                00746 invalid:
+049F  C1        00747     pop bc
+04A0  E1        00748     pop hl
+04A1  F1        00749     pop af
+                00750 ;    ld bc, $FFFF
+                00751 ;  push bc
+04A2  C9        00752     ret
+                00753 
+                00754  
+                00755         
+                00756 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00757 ;  this routine performs the operation HL=DE*A
+                00758 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00759 Mul8:                            ; this routine performs the operation HL=DE*A
+04A3  210000    00760   ld hl,0                        ; HL is used to accumulate the result
+04A6  0608      00761   ld b,8                         ; the multiplier (A) is 8 bits wide
+                00762 Mul8Loop:
+04A8  0F        00763   rrca                           ; putting the next bit into the carry
+04A9  D2AD04    00764   jp nc,Mul8Skip                 ; if zero, we skip the addition (jp is used for speed)
+04AC  19        00765   add hl,de                      ; adding to the product if necessary
+                00766 Mul8Skip:
+04AD  CB23      00767   sla e                          ; calculating the next auxiliary product by shifting
+04AF  CB12      00768   rl d                            ; DE one bit leftwards (refer to the shift instructions!)
+04B1  10F5      00769   djnz Mul8Loop
+04B3  C9        00770   ret
+                00771         
+                00772 
+                00773         
+                00774 *MOD    
+                00775 print_current_room
+04B4  218F07    00776         ld hl,curRoomStr
+04B7  CD5206    00777         call printstr
+04BA  CD3F05    00778         call print_room_label
+04BD  CD6C06    00779         call newline    
+04C0  C9        00780         ret
+                00781         
+                00782 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00783 ;prints out the scores then prompts the
+                00784 ;player to play again
+                00785 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                00786 *MOD 
+                00787 play_again
+04C1  21B50D    00788         ld hl,playerwinstxt
+04C4  CD5206    00789         call printstr
+04C7  3AD306    00790         ld a,(playerscore)
+04CA  CD2306    00791         call itoa8
+04CD  21AB0D    00792         ld hl,wumpuswinstxt
+04D0  CD5206    00793         call printstr
+04D3  3AD406    00794         ld a,(wumpusscore)
+04D6  CD2306    00795         call itoa8
+04D9  CD6C06    00796         call newline    
+04DC  217B09    00797         ld hl,playagain
+04DF  CD6506    00798         call printstrcr
+04E2  CD7B06    00799         call get_char
+04E5  FE79      00800         cp 'y'
+04E7  CAED04    00801         jp z,$yW
+04EA  C35901    00802         jp quit
+04ED  CDB901    00803 $yW     call set_up_game
+04F0  C9        00804         ret
+                00805         
+                00806 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    
+                00807 print_tunnels:
+04F1  21A007    00808     ld hl,passages
+04F4  CD5206    00809     call printstr
+                00810     
+                00811     ;11,15,22
+04F7  3ACF06    00812         ld a,(curRoom)
+04FA  F5        00813         push af
+04FB  2AD006    00814     ld hl,(currroomaddr) ; load addr of byte with tunnel
+04FE  E5        00815         push hl
+                00816         
+04FF  23        00817     inc hl      ; skip to 1st neighbor
+0500  23        00818     inc hl
+0501  7E        00819         ld a,(hl)
+0502  32CF06    00820         ld (curRoom),a
+0505  CD3402    00821         call set_room_addr
+0508  CD3F05    00822     call print_room_label
+                00823 
+050B  E5        00824         push hl
+050C  1E2C      00825     ld e,','
+050E  0E02      00826         ld c,WCONF
+0510  CD0500    00827         call BDOS
+0513  E1        00828         pop hl
+                00829         
+0514  23        00830         inc hl
+0515  7E        00831         ld a,(hl)
+0516  32CF06    00832         ld (curRoom),a
+0519  CD3402    00833         call set_room_addr
+051C  CD3F05    00834     call print_room_label
+                00835 
+051F  E5        00836         push hl
+0520  1E2C      00837     ld e,','
+0522  0E02      00838         ld c,WCONF
+0524  CD0500    00839         call BDOS
+0527  E1        00840         pop hl
+                00841 
+0528  23        00842         inc hl
+0529  7E        00843         ld a,(hl)
+052A  32CF06    00844         ld (curRoom),a
+052D  CD3402    00845         call set_room_addr
+0530  CD3F05    00846     call print_room_label
+                00847     
+0533  CD6C06    00848         call newline
+                00849         
+                00850         ;restore original room ptr
+0536  E1        00851         pop hl
+0537  22D006    00852         ld (currroomaddr),hl
+                00853         
+053A  F1        00854         pop af
+053B  32CF06    00855         ld (curRoom),a
+                00856         
+053E  C9        00857     ret
+                00858 
+                00859 ;assumes currroomaddr is set
+                00860 print_room_label
+053F  E5        00861         push hl
+                00862         
+                00863         ;print 1st char
+0540  2AD006    00864         ld hl,(currroomaddr)
+0543  7E        00865         ld a,(hl)
+0544  E5        00866         push hl
+0545  5F        00867         ld e,a
+0546  CD9E06    00868         call print_char
+0549  E1        00869         pop hl
+                00870 
+                00871         ;print 2nd char
+054A  E5        00872         push hl
+054B  23        00873         inc hl
+054C  7E        00874         ld a,(hl)
+054D  5F        00875         ld e,a
+054E  CD9E06    00876         call print_char
+0551  E1        00877         pop hl
+                00878         
+0552  E1        00879         pop hl
+0553  C9        00880         ret
+                00881 
+                00882 *MOD
+                00883 dump_board
+0554  3ACF06    00884          ld a,(curRoom)
+0557  F5        00885          push af 
+0558  3E01      00886          ld a,1
+055A  F5        00887 $lpX push af
+055B  32CF06    00888          ld (curRoom),a
+055E  CD3402    00889          call set_room_addr
+0561  CD3F05    00890          call print_room_label
+0564  CDEC03    00891          call get_flags_byte
+0567  328C07    00892          ld (flagsSav),a
+056A  E610      00893          and PIT_BIT
+056C  CA7805    00894          jp z,$tX        
+056F  21D10D    00895          ld hl,pitdbg
+0572  CD5206    00896          call printstr
+0575  CD6C06    00897          call newline
+0578  3A8C07    00898 $tX      ld a,(flagsSav)
+057B  E620      00899          and NEXTTOPIT_BIT
+057D  CA8905    00900          jp z,$nX
+0580  21D50D    00901          ld hl,draftdbg
+0583  CD5206    00902          call printstr
+0586  CD6C06    00903          call newline
+0589  3A8C07    00904 $nX      ld a,(flagsSav)
+058C  E604      00905          and BAT_BIT
+058E  CA9A05    00906          jp z,$oX
+0591  21DB0D    00907          ld hl,batsdbg
+0594  CD5206    00908          call printstr
+0597  CD6C06    00909          call newline
+059A  3A8C07    00910 $oX      ld a,(flagsSav)
+059D  E608      00911          and NEXTTOBATS_BIT
+059F  CAAB05    00912          jp z,$lX
+05A2  21E00D    00913          ld hl,squeakdbg
+05A5  CD5206    00914          call printstr
+05A8  CD6C06    00915          call newline
+05AB  3A8C07    00916 $lX     ld a,(flagsSav)
+05AE  E601      00917          and WUMPUS_BIT
+05B0  CAB905    00918          jp z,$pX
+05B3  21EB0D    00919          ld hl,wumpdbg
+05B6  CD5206    00920          call printstr
+05B9  3A8C07    00921 $pX ld a,(flagsSav)
+05BC  E602      00922          and NEXTTOWUMPUS_BIT
+05BE  CAC705    00923          jp z,$mX
+05C1  21F20D    00924          ld hl,smelldbg
+05C4  CD5206    00925          call printstr
+05C7  CD6C06    00926 $mX      call newline
+05CA  F1        00927          pop af
+05CB  3C        00928          inc a
+05CC  FE15      00929          cp 21
+05CE  C25A05    00930          jp nz,$lpX
+05D1  F1        00931          pop af
+05D2  32CF06    00932          ld (curRoom),a
+05D5  CD3402    00933          call set_room_addr
+05D8  C9        00934          ret
+                00935 
+                00936         
+                00937 *INCLUDE math.asm
+                00938 ;lrs rand for z80
+                00939 
+    = 0010      00940 LEFT_BIT equ 16
+    = 0004      00941 RIGHT_BIT equ 4
+    = 0014      00942 RAND_MASK equ LEFT_BIT + RIGHT_BIT
+                00943 
+                00944  
+                00945 
+                00946 
+                00947 ;generates a random number and mods it by 'b'
+                00948 ;and returns it in 'a'
+                00949 *MOD
+                00950 rmod
+05D9  C5        00951         push bc
+05DA  CDFD05    00952         call rand
+05DD  3A5106    00953         ld a,(urand)
+05E0  C1        00954         pop bc
+05E1  CDE505    00955         call mod ; now mod it by 'b' (leave result in 'a')
+                00956         
+05E4  C9        00957         ret     
+                00958 
+                00959 ;mods a by b            
+                00960 *MOD    
+05E5  B8        00961 mod             cp b
+05E6  DAED05    00962                         jp c,$xZ
+05E9  90        00963                         sub b
+05EA  C3E505    00964                         jp mod
+                00965 ;                       ld a,5 
+05ED  C9        00966 $xZ                     ret
+                00967 
+                00968 ;div a by b             
+                00969 *MOD    
+                00970 div             
+05EE  D5        00971                         push de
+05EF  1600      00972                         ld d,0
+05F1  B8        00973 $dvlpBA         cp b
+05F2  FAFA05    00974                         jp m,$xBA
+05F5  90        00975                         sub b
+05F6  14        00976                         inc d
+05F7  C3F105    00977                         jp $dvlpBA
+05FA  7A        00978 $xBA                    ld a,d
+05FB  D1        00979                         pop de
+05FC  C9        00980                         ret
+                00981 
+                00982 
+                00983 ;returns # in a                 
+                00984 *MOD
+                00985 rand
+05FD  3A5006    00986                 ld a,(random)
+0600  E614      00987                 and a,RAND_MASK
+0602  FE10      00988                 cp LEFT_BIT
+0604  CA1406    00989                 jp z,$poBB
+0607  FE04      00990                 cp RIGHT_BIT
+0609  CA1406    00991                 jp z,$poBB 
+060C  3A5006    00992                 ld a,(random) 
+060F  CB3F      00993                 srl a   ;   just shift (pad with 0)     
+0611  C31B06    00994                 jp $xBB
+0614  3A5006    00995 $poBB   ld a,(random)
+0617  CB3F      00996                 srl a   ;       pad with a 1
+0619  C680      00997                 add a,128 ; stick a 1 on the left 
+061B  325006    00998 $xBB            ld (random),a
+061E  3D        00999                 dec a
+061F  325106    01000                 ld (urand),a
+0622  C9        01001                 ret
+                01002 
+                01003 ;a contains byte to print
+                01004 *MOD
+                01005 itoa8
+0623  F5        01006                 push af ;save number
+0624  C5        01007                 push bc
+0625  D5        01008                 push de
+0626  47        01009                 ld b,a  ;save a
+0627  3E00      01010                 ld a,0  ;push a null onto the stack
+0629  F5        01011                 push af
+062A  78        01012                 ld a,b ; restore a
+062B  060A      01013 $lpBC   ld b,10 ; b is number to mod by
+062D  CDE505    01014                 call mod ; result in a
+0630  47        01015                 ld b,a   ; save a
+0631  C630      01016                 add a,030h       ; convert it to a char
+0633  F5        01017                 push af  ; push char to print onto the stack
+0634  78        01018                 ld a,b  ; restore a
+0635  060A      01019                 ld b,10 ; b is number to divide by
+0637  CDEE05    01020                 call div ; divide a by 10
+063A  FE00      01021                 cp 0
+063C  C22B06    01022                 jp nz,$lpBC ; keep moding/dividing until 0
+063F  F1        01023 $prBC   pop af     ;pop a character     
+0640  FE00      01024                 cp 0       ;null?
+0642  CA4C06    01025                 jp z,$xBC   ;yes - done
+0645  5F        01026                 ld e,a
+0646  CD9E06    01027                 call print_char
+0649  C33F06    01028                 jp $prBC ; keep printing until 0 hit
+064C  D1        01029 $xBC            pop de
+064D  C1        01030                 pop bc
+064E  F1        01031                 pop af  ; restore #
+064F  C9        01032                 ret
+                01033                 
+0650  FF        01034 random DB 255
+0651  00        01035 urand DB 0  ; output
+                01036 *INCLUDE cpm.asm
+                01037 ;cpm.asm
+                01038 
+                01039 ;hl points to the start of the cpm buffer
+                01040 ;2nd is length of buffer
+                01041 ;*MOD
+                01042 ;atoi
+                01043 ;       ld a,0
+                01044 ;       ld (atoirslt),a
+                01045 ;       inc hl
+                01046 ;       ld a,(hl)
+                01047 ;       ld b,a
+                01048 ;       inc hl
+                01049 ;$lp?
+                01050 ;       
+                01051 ;       djnz $lp;
+                01052 ;       ret
+                01053         
+                01054 ;atoirslt
+                01055 
+                01056 ;assumes string is loaded into hl
+                01057 *MOD
+                01058 printstr
+0652  7E        01059 $lpBD ld a,(hl)
+0653  FE00      01060         cp 0
+0655  CA6406    01061         jp z,$xBD
+0658  5F        01062         ld e,a
+0659  0E02      01063         ld c,WCONF
+065B  E5        01064         push hl
+065C  CD0500    01065         call BDOS
+065F  E1        01066         pop hl
+0660  23        01067         inc hl
+0661  C35206    01068         jp $lpBD
+0664  C9        01069 $xBD    ret
+                01070 
+                01071 printstrcr
+0665  CD5206    01072         call printstr
+0668  CD6C06    01073         call newline
+066B  C9        01074         ret
+                01075 
+                01076 newline
+066C  1E0D      01077         ld e,CR
+066E  0E02      01078         ld c,WCONF
+0670  CD0500    01079         call BDOS
+0673  1E0A      01080         ld e,LF
+0675  0E02      01081         ld c,WCONF
+0677  CD0500    01082         call BDOS
+067A  C9        01083         ret
+                01084 
+                01085 *MOD
+                01086 get_char
+                01087         ;loop until char is ready
+                01088 $lpBE 
+067B  3A5006    01089          ld a,(random)
+067E  3C        01090          inc a
+067F  325006    01091          ld (random),a
+                01092          
+0682  0E06      01093          ld c,C_RAWIO
+0684  1EFF      01094          ld e,0FFh;
+0686  CD0500    01095          call BDOS
+0689  FE00      01096          cp 0
+068B  CA7B06    01097          jp z,$lpBE      
+068E  C9        01098          ret
+                01099         
+                01100 *MOD    
+                01101 readline
+068F  11A406    01102         ld de,inbuf
+0692  0E0A      01103         ld c,C_READSTR
+0694  CD0500    01104         call BDOS
+0697  CD6C06    01105         call newline
+069A  CD6C06    01106         call newline
+069D  C9        01107         ret
+                01108 
+                01109 
+                01110 ;char in e      
+                01111 *MOD
+                01112 print_char
+069E  0E02      01113         ld c,WCONF
+06A0  CD0500    01114         call BDOS       
+06A3  C9        01115         ret
+                01116 ;*INCLUDE trs80.asm     
+                01117 inputbuffer
+                01118 
+06A4  28        01119 inbuf   DB 40  ; len
+06A5  00        01120 bytesrd DB 0            
+06A6            01121 chars   DS 40  ; space
+                01122         
+                01123 ;data
+06CE  00        01124 seed DB 0
+06CF  01        01125 curRoom DB 1
+06D0  D506      01126 currroomaddr DW room1
+06D2  00        01127 roomentry DB 0
+06D3  00        01128 playerscore DB 0
+06D4  00        01129 wumpusscore DB 0
+                01130 
+                01131 ;2byte label, 
+                01132 ;three bytes for the number of the connecting rooms, 
+                01133 ;one byte for flags bits from left to right
+                01134 ; |0|0|next to pit|has pit|next to bats|has bats|next to wumpus|has wumpus|
+                01135 
+                01136 room1:
+06D5  20310205  01137     DB 20h,31h,02,05,08,0
+      08 00                  
+                01138 room2:
+06DB  20320103  01139     DB 20h,32h,01,03h,0Ah,0
+      0A 00                  
+                01140 room3:
+06E1  20330204  01141     DB 20h,33h,02,04,0Ch,0
+      0C 00                  
+                01142 room4:
+06E7  20340305  01143     DB 20h,34h,03,05,0Eh,0
+      0E 00                  
+                01144 room5:
+06ED  20350104  01145     DB 20h,35h,01h,04h,06h,0 
+      06 00                  
+                01146 room6:
+06F3  20360507  01147     DB 20h,36h,05h,07h,0Fh,0
+      0F 00                  
+                01148 room7:
+06F9  20370608  01149     DB 20h,37h,6h,08h,11h,0 
+      11 00                  
+                01150 room8:
+06FF  20380107  01151     DB 20h,38h,01,07,09,0
+      09 00                  
+                01152 room9:
+0705  2039080A  01153     DB 20h,39h,08h,0Ah,12h,0 
+      12 00                  
+                01154 room10:
+070B  31300209  01155     DB 31h,30h,02h,09h,0Bh,0 
+      0B 00                  
+                01156 room11:
+0711  31310A0C  01157     DB 31h,31h,0Ah,0Ch,13h,0 
+      13 00                  
+                01158 room12:
+0717  3132030B  01159     DB 31h,32h,03h,0Bh,0Dh,0 
+      0D 00                  
+                01160 room13:
+071D  31330C0E  01161     DB 31h,33h,0Ch,0Eh,14h,00
+      14 00                  
+                01162 room14:
+0723  3134040D  01163     DB 31h,34h,04h,0Dh,0Fh,0
+      0F 00                  
+                01164 room15:
+0729  3135060E  01165     DB 31h,35h,06h,0Eh,10h,0
+      10 00                  
+                01166 room16:
+072F  31360F11  01167     DB 31h,36h,0Fh,11h,14h,0h
+      14 00                  
+                01168 room17:
+0735  31370710  01169     DB 31h,37h,07h,10h,12h,0
+      12 00                  
+                01170 room18:
+073B  31380911  01171     DB 31h,38h,09h,11h,13h,0 
+      13 00                  
+                01172 room19:
+0741  31390B12  01173     DB 31h,39h,0Bh,12h,14h,0 
+      14 00                  
+                01174 room20:
+0747  32300D10  01175     DB 32h,30h,0Dh,10h,13h,0 
+      13 00                  
+                01176 
+                01177 
+                01178 ;strings        
+074D  57656C63  01179 welcome DB "Welcome to Hunt the Wumpus",0
+      6F 6D 65 20 74 6F 20 48
+      75 6E 74 20 74 68 65 20
+      57 75 6D 70 75 73 00   
+0768  00        01180         DB 0
+0769  43502F4D  01181 author DB "CP/M Version by Evan Wright, 2017",0
+      20 56 65 72 73 69 6F 6E
+      20 62 79 20 45 76 61 6E
+      20 57 72 69 67 68 74 2C
+      20 32 30 31 37 00      
+078B  00        01182         DB 0
+                01183 
+078C  00        01184 flagsSav DB 0   
+078D  0000      01185 stacksave DW 0
+078F  596F7520  01186 curRoomStr DB "You are in room ",0
+      61 72 65 20 69 6E 20 72
+      6F 6F 6D 20 00         
+07A0  50617373  01187 passages DB "Passages lead to rooms ",0
+      61 67 65 73 20 6C 65 61
+      64 20 74 6F 20 72 6F 6F
+      6D 73 20 00            
+07B8  2E00      01188 period DB ".",0
+07BA  20616E64  01189 and DB " and ",0
+      20 00                  
+07C0  53657474  01190 setuptxt DB "Setting up the caves...",0h
+      69 6E 67 20 75 70 20 74
+      68 65 20 63 61 76 65 73
+      2E 2E 2E 00            
+07D8  54686520  01191 wumpuslurk DB "The Wumpus has found a cave to lurk in... ",0h
+      57 75 6D 70 75 73 20 68
+      61 73 20 66 6F 75 6E 64
+      20 61 20 63 61 76 65 20
+      74 6F 20 6C 75 72 6B 20
+      69 6E 2E 2E 2E 20 00   
+0803  54686520  01192 pitsforming DB "The Earth's crust is cracking, forming bottomless pits...",0h
+      45 61 72 74 68 27 73 20
+      63 72 75 73 74 20 69 73
+      20 63 72 61 63 6B 69 6E
+      67 2C 20 66 6F 72 6D 69
+      6E 67 20 62 6F 74 74 6F
+      6D 6C 65 73 73 20 70 69
+      74 73 2E 2E 2E 00      
+083D  4769616E  01193 batsroosting DB "Giant vampire bats have infiltrated the caves...",0h
+      74 20 76 61 6D 70 69 72
+      65 20 62 61 74 73 20 68
+      61 76 65 20 69 6E 66 69
+      6C 74 72 61 74 65 64 20
+      74 68 65 20 63 61 76 65
+      73 2E 2E 2E 00         
+086E  446F6E65  01194 done DB "Done.",0
+      2E 00                  
+0874  596F7520  01195 baddir DB "You can't move/shoot that way.",0h
+      63 61 6E 27 74 20 6D 6F
+      76 65 2F 73 68 6F 6F 74
+      20 74 68 61 74 20 77 61
+      79 2E 00               
+0893  2A525553  01196 batswarning DB "*RUSTLE* *RUSTLE* You hear vampire bats nearby.",0      
+      54 4C 45 2A 20 2A 52 55
+      53 54 4C 45 2A 20 59 6F
+      75 20 68 65 61 72 20 76
+      61 6D 70 69 72 65 20 62
+      61 74 73 20 6E 65 61 72
+      62 79 2E 00            
+08C3  2A464C41  01197 batmove DB "*FLAP* *FLAP* *FLAP* Giant vampire bats have flown you to a different cave.",0      
+      50 2A 20 2A 46 4C 41 50
+      2A 20 2A 46 4C 41 50 2A
+      20 47 69 61 6E 74 20 76
+      61 6D 70 69 72 65 20 62
+      61 74 73 20 68 61 76 65
+      20 66 6C 6F 77 6E 20 79
+      6F 75 20 74 6F 20 61 20
+      64 69 66 66 65 72 65 6E
+      74 20 63 61 76 65 2E 00
+090F  596F7520  01198 pitwarning DB "You feel a draft.",0     
+      66 65 65 6C 20 61 20 64
+      72 61 66 74 2E 00      
+0921  4920534D  01199 wumpuswarning DB "I SMELL A WUMPUS!",0  
+      45 4C 4C 20 41 20 57 55
+      4D 50 55 53 21 00      
+0933  57686963  01200 whichroom DB "Which room?",0    
+      68 20 72 6F 6F 6D 3F 00
+093F  54686174  01201 youcantgothatway DB "That's not a valid room.",0        
+      27 73 20 6E 6F 74 20 61
+      20 76 61 6C 69 64 20 72
+      6F 6F 6D 2E 00         
+0958  576F756C  01202 helpprompt DB "Would you like instructions? (y/n)",0
+      64 20 79 6F 75 20 6C 69
+      6B 65 20 69 6E 73 74 72
+      75 63 74 69 6F 6E 73 3F
+      20 28 79 2F 6E 29 00   
+097B  506C6179  01203 playagain DB "Play again?",0
+      20 61 67 61 69 6E 3F 00
+0987  456E7465  01204 entercmd DB "Enter a command:",0
+      72 20 61 20 63 6F 6D 6D
+      61 6E 64 3A 00         
+0998  4D6F7665  01205 cmdprompt DB "Move(m), shoot(s), or quit(q)?",0
+      28 6D 29 2C 20 73 68 6F
+      6F 74 28 73 29 2C 20 6F
+      72 20 71 75 69 74 28 71
+      29 3F 00               
+09B7  4279652E  01206 bye DB "Bye.",0
+      00                     
+09BC  4F6F6F70  01207 pitdeath DB "Ooops...you have fallen into a bottomless pit.",0
+      73 2E 2E 2E 79 6F 75 20
+      68 61 76 65 20 66 61 6C
+      6C 65 6E 20 69 6E 74 6F
+      20 61 20 62 6F 74 74 6F
+      6D 6C 65 73 73 20 70 69
+      74 2E 00               
+09EB  2A2A2A59  01208 youhavedied DB "***YOU HAVE DIED***",0
+      4F 55 20 48 41 56 45 20
+      44 49 45 44 2A 2A 2A 00
+09FF  53574F4F  01209 shootarrowtxt DB "SWOOSH...",0
+      53 48 2E 2E 2E 00      
+0A09  54485741  01210 thwacktxt DB "THWACK!",0
+      43 4B 21 00            
+0A11  524F4152  01211 roartxt DB "ROAR!",0
+      21 00                  
+0A17  4F68206E  01212 playereaten DB "Oh no! You have wandered into the lair of the Wumpus",0h
+      6F 21 20 59 6F 75 20 68
+      61 76 65 20 77 61 6E 64
+      65 72 65 64 20 69 6E 74
+      6F 20 74 68 65 20 6C 61
+      69 72 20 6F 66 20 74 68
+      65 20 57 75 6D 70 75 73
+      00                     
+0A4C  436C756E  01213 playereaten0 DB "Clunk.",0
+      6B 2E 00               
+0A53  596F7572  01214 playereaten1 DB "Your single arrow lands harmlessly in an empty cave...",0
+      20 73 69 6E 67 6C 65 20
+      61 72 72 6F 77 20 6C 61
+      6E 64 73 20 68 61 72 6D
+      6C 65 73 73 6C 79 20 69
+      6E 20 61 6E 20 65 6D 70
+      74 79 20 63 61 76 65 2E
+      2E 2E 00               
+0A8A  41732079  01215 playereaten2 DB "As you stop to ponder the fatal implications, the Wumpus sneaks up behind you and devours you!",0
+      6F 75 20 73 74 6F 70 20
+      74 6F 20 70 6F 6E 64 65
+      72 20 74 68 65 20 66 61
+      74 61 6C 20 69 6D 70 6C
+      69 63 61 74 69 6F 6E 73
+      2C 20 74 68 65 20 57 75
+      6D 70 75 73 20 73 6E 65
+      61 6B 73 20 75 70 20 62
+      65 68 69 6E 64 20 79 6F
+      75 20 61 6E 64 20 64 65
+      76 6F 75 72 73 20 79 6F
+      75 21 00               
+0AE9  41206465  01216 victorymessage1 DB "A deafening roar fills the caverns as the wumpus falls dead.",0
+      61 66 65 6E 69 6E 67 20
+      72 6F 61 72 20 66 69 6C
+      6C 73 20 74 68 65 20 63
+      61 76 65 72 6E 73 20 61
+      73 20 74 68 65 20 77 75
+      6D 70 75 73 20 66 61 6C
+      6C 73 20 64 65 61 64 2E
+      00                     
+0B26  436F6E67  01217 victorymessage2 DB "Congratulations...You have killed the wumpus!!!",0
+      72 61 74 75 6C 61 74 69
+      6F 6E 73 2E 2E 2E 59 6F
+      75 20 68 61 76 65 20 6B
+      69 6C 6C 65 64 20 74 68
+      65 20 77 75 6D 70 75 73
+      21 21 21 00            
+                01218 help
+0B56  496E2074  01219 help1 DB "In this mazes of cave lives a fearsome creature known as the Wumpus which you must kill with your single arrow."
+      68 69 73 20 6D 61 7A 65
+      73 20 6F 66 20 63 61 76
+      65 20 6C 69 76 65 73 20
+      61 20 66 65 61 72 73 6F
+      6D 65 20 63 72 65 61 74
+      75 72 65 20 6B 6E 6F 77
+      6E 20 61 73 20 74 68 65
+      20 57 75 6D 70 75 73 20
+      77 68 69 63 68 20 79 6F
+      75 20 6D 75 73 74 20 6B
+      69 6C 6C 20 77 69 74 68
+      20 79 6F 75 72 20 73 69
+      6E 67 6C 65 20 61 72 72
+      6F 77 2E               
+0BC5  20205368  01220 help2 DB "  Should you venture into the cave containing the Wumpus, it will surely devour you."
+      6F 75 6C 64 20 79 6F 75
+      20 76 65 6E 74 75 72 65
+      20 69 6E 74 6F 20 74 68
+      65 20 63 61 76 65 20 63
+      6F 6E 74 61 69 6E 69 6E
+      67 20 74 68 65 20 57 75
+      6D 70 75 73 2C 20 69 74
+      20 77 69 6C 6C 20 73 75
+      72 65 6C 79 20 64 65 76
+      6F 75 72 20 79 6F 75 2E
+0C19  20204F74  01221 help3 DB "  Other hazards exist besides the wumpus. There are two bottomless pits."
+      68 65 72 20 68 61 7A 61
+      72 64 73 20 65 78 69 73
+      74 20 62 65 73 69 64 65
+      73 20 74 68 65 20 77 75
+      6D 70 75 73 2E 20 54 68
+      65 72 65 20 61 72 65 20
+      74 77 6F 20 62 6F 74 74
+      6F 6D 6C 65 73 73 20 70
+      69 74 73 2E            
+0C61  20204966  01222 help4 DB "  If you are adjacent to a pit, you will feel a draft."
+      20 79 6F 75 20 61 72 65
+      20 61 64 6A 61 63 65 6E
+      74 20 74 6F 20 61 20 70
+      69 74 2C 20 79 6F 75 20
+      77 69 6C 6C 20 66 65 65
+      6C 20 61 20 64 72 61 66
+      74 2E                  
+0C97  20204769  01223 help5 DB "  Giant vampire bats are known to inhabit the caves as well."
+      61 6E 74 20 76 61 6D 70
+      69 72 65 20 62 61 74 73
+      20 61 72 65 20 6B 6E 6F
+      77 6E 20 74 6F 20 69 6E
+      68 61 62 69 74 20 74 68
+      65 20 63 61 76 65 73 20
+      61 73 20 77 65 6C 6C 2E
+0CD3  20204966  01224 help6 DB "  If you disturb them by entering their lair, they will fly you elsewhere."
+      20 79 6F 75 20 64 69 73
+      74 75 72 62 20 74 68 65
+      6D 20 62 79 20 65 6E 74
+      65 72 69 6E 67 20 74 68
+      65 69 72 20 6C 61 69 72
+      2C 20 74 68 65 79 20 77
+      69 6C 6C 20 66 6C 79 20
+      79 6F 75 20 65 6C 73 65
+      77 68 65 72 65 2E      
+0D1D  2020486F  01225 help7 DB "  Hope though, that they don't drop you in a pit or on the wumpus!"
+      70 65 20 74 68 6F 75 67
+      68 2C 20 74 68 61 74 20
+      74 68 65 79 20 64 6F 6E
+      27 74 20 64 72 6F 70 20
+      79 6F 75 20 69 6E 20 61
+      20 70 69 74 20 6F 72 20
+      6F 6E 20 74 68 65 20 77
+      75 6D 70 75 73 21      
+0D5F  20205768  01226 help8 DB "  When you have located the wumpus, fire an arrow into its lair to slay it.",0h
+      65 6E 20 79 6F 75 20 68
+      61 76 65 20 6C 6F 63 61
+      74 65 64 20 74 68 65 20
+      77 75 6D 70 75 73 2C 20
+      66 69 72 65 20 61 6E 20
+      61 72 72 6F 77 20 69 6E
+      74 6F 20 69 74 73 20 6C
+      61 69 72 20 74 6F 20 73
+      6C 61 79 20 69 74 2E 00
+0DAB  2057756D  01227 wumpuswinstxt DB " Wumpus: ",0h
+      70 75 73 3A 20 00      
+0DB5  506C6179  01228 playerwinstxt DB "Player: ",0h
+      65 72 3A 20 00         
+0DBE  42414420  01229 badrand DB "BAD RANDOM NUMBER!",0h
+      52 41 4E 44 4F 4D 20 4E
+      55 4D 42 45 52 21 00   
+0DD1  50495400  01230 pitdbg DB "PIT",0
+0DD5  44524146  01231 draftdbg DB "DRAFT",0
+      54 00                  
+0DDB  42415453  01232 batsdbg DB "BATS",0
+      00                     
+0DE0  4E455854  01233 squeakdbg DB "NEXTTOBATS",0
+      54 4F 42 41 54 53 00   
+0DEB  57554D50  01234 wumpdbg DB "WUMPUS",0
+      55 53 00               
+0DF2  534D454C  01235 smelldbg DB "SMELL",0
+      4C 00                  
+0DF8  00        01236         DB 0
+                01237 
+                01238         
+                01239 
+                01240         END START
+
+
+$DVLPBA         05F1  $ILP            03A0  $IPA            0125  
+$LPBC           062B  $LPBD           0652  $LPBE           067B  
+$LPP            0393  $LPU            046A  $LPX            055A  
+$LX             05AB  $MX             05C7  $NX             0589  
+$OX             059A  $POBB           0614  $PRBC           063F  
+$PX             05B9  $TX             0578  $XA             014E  
+$XBA            05FA  $XBB            061B  $XBC            064C  
+$XBD            0664  $XJ             0290  $XK             02B5  
+$XM             031B  $XN             0379  $XQ             03D1  
+$XZ             05ED  $YW             04ED  AND             07BA  
+ANIMATE_PIT_FAL 0391  ARROW_HIT       02FF  ARROW_MISS      02DA  
+ATOI            0471  ATOILOOP        0478  AUTHOR          0769  
+A_READ          0003  BADCHAR         0442  BADDIR          0874  
+BADRAND         0DBE  BAD_ROOM        02AF  BATMOVE         08C3  
+BATSDBG         0DDB  BATSROOSTING    083D  BATSWARNING     0893  
+BAT_BIT         0004  BDOS            0005  BYE             09B7  
+BYTESRD         06A5  CHARS           06A6  CHAR_TO_NUM     042D  
+CHECK_FOR_BATS  036B  CHECK_FOR_PIT   034E  CLEAR_ALL_FLAGS 0448  
+CLEAR_FLAGS_LOO 0456  CMDPROMPT       0998  CPM_ATOI        0462  
+CR              000D  CURROOM         06CF  CURROOMSTR      078F  
+CURRROOMADDR    06D0  C_RAWIO         0006  C_READSTR       000A  
+C_STAT          000B  DE_TIMES_A      03D3  DIV             05EE  
+DONE            086E  DRAFTDBG        0DD5  DUMP_BOARD      0554  
+ENTERCMD        0987  FLAGSSAV        078C  FLAG_LOOP       01A5  
+FLY_PLAYER_TO_N 037A  GET_CHAR        067B  GET_FLAGS_BYTE  03EC  
+GET_ROOM_PTR    0220  GOODCHAR        0444  HANDLE_HAZARDS  031C  
+HANDLE_MOVE     026C  HANDLE_SHOOT    0291  HELP            0B56  
+HELP1           0B56  HELP2           0BC5  HELP3           0C19  
+HELP4           0C61  HELP5           0C97  HELP6           0CD3  
+HELP7           0D1D  HELP8           0D5F  HELPPROMPT      0958  
+INBUF           06A4  INPUTBUFFER     06A4  INVALID         049F  
+INVALID_ROOM    028A  ITOA8           0623  LEFT_BIT        0010  
+LF              000A  LOOK            020F  MAIN            0100  
+MOD             05E5  MOVE_PLAYER     02B6  MUL8            04A3  
+MUL8LOOP        04A8  MUL8SKIP        04AD  MULLOOP         03E8  
+MULTIPLY        03E0  NEWLINE         066C  NEXTTOBATS_BIT  0008  
+NEXTTOPIT_BIT   0020  NEXTTOWUMPUS_BI 0002  NOBATS          041C  
+NOPIT           040C  NOWUMPUS        042C  PASSAGES        07A0  
+PERIOD          07B8  PITDBG          0DD1  PITDEATH        09BC  
+PITSFORMING     0803  PITWARNING      090F  PIT_BIT         0010  
+PLAYAGAIN       097B  PLAYEREATEN     0A17  PLAYEREATEN0    0A4C  
+PLAYEREATEN1    0A53  PLAYEREATEN2    0A8A  PLAYERSCORE     06D3  
+PLAYERWINSTXT   0DB5  PLAYER_SAFE     0379  PLAY_AGAIN      04C1  
+PRINTSTR        0652  PRINTSTRCR      0665  PRINT_CHAR      069E  
+PRINT_CURRENT_R 04B4  PRINT_FLAGS     03F9  PRINT_HELP      045B  
+PRINT_ROOM_LABE 053F  PRINT_TUNNELS   04F1  PROMPTCOMMAND   0219  
+QUIT            0159  RAND            05FD  RANDOM          0650  
+RANDOM_20       03BA  RAND_MASK       0014  RCONF           0001  
+READLINE        068F  RIGHT_BIT       0004  RMOD            05D9  
+ROARTXT         0A11  ROOM1           06D5  ROOM10          070B  
+ROOM11          0711  ROOM12          0717  ROOM13          071D  
+ROOM14          0723  ROOM15          0729  ROOM16          072F  
+ROOM17          0735  ROOM18          073B  ROOM19          0741  
+ROOM2           06DB  ROOM20          0747  ROOM3           06E1  
+ROOM4           06E7  ROOM5           06ED  ROOM6           06F3  
+ROOM7           06F9  ROOM8           06FF  ROOM9           0705  
+ROOMENTRY       06D2  SEED            06CE  SETUPTXT        07C0  
+SET_ADJACENT_RO 01A1  SET_FLAG_IN_ADJ 0187  SET_ROOM_ADDR   0234  
+SET_ROOM_FLAG   015C  SET_UP_GAME     01B9  SHOOTARROWTXT   09FF  
+SHOOT_ARROW     02C3  SMELLDBG        0DF2  SQUEAKDBG       0DE0  
+STACKSAVE       078D  START           0100  S_SYSVAR        0031  
+THWACKTXT       0A09  URAND           0651  VALIDATE_MOVE   0257  
+VALIDATE_MOVE_L 025E  VALID_MOVE      0269  VICTORYMESSAGE1 0AE9  
+VICTORYMESSAGE2 0B26  WCONF           0002  WELCOME         074D  
+WHICHROOM       0933  WUMPDBG         0DEB  WUMPUSLURK      07D8  
+WUMPUSSCORE     06D4  WUMPUSWARNING   0921  WUMPUSWINSTXT   0DAB  
+WUMPUS_BIT      0001  YOUCANTGOTHATWA 093F  YOUHAVEDIED     09EB  
+

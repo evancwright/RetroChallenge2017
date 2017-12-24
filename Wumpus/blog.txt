@@ -1,0 +1,76 @@
+Distant past...
+Ordered CPM books just in case I needed them someday
+
+Ordered Altairduino
+
+12/18  Altairduio arrives
+Labeled it "From Evan to Evan" and threw it in the pile of Christmas presents wrap. Wife finds this amusing.
+
+12/19 Found  RunCPM on gitHub,downloaded it and built it with Visual Studio
+Instructions for setting up RunCPM were easy to follow. Unfortunately, it has no debugger except for DDT, the debugger built into CPM
+
+There is no need to create a disk image and attach the file to it.  Under RunCPM, you can just copy the COM file into the B\0 folder in the emulator's folder.
+If the Altairduino runs the RunCPM emulator, I'm all set...otherwise I'll need to find some disk management tools.
+
+
+Entered the test program in chapter 1 it printed out  a $ as expected
+Created a hello world program
+Text I/O achieved!
+
+12/20
+Started copying wumpus code from ZX81 project to a new CP/M
+Switch from TASM to Z80Asm, so a lot of reformatting is required
+ZX81 Random number generator will not work in CP/M because it assumes there is an R register
+-> Need to copy in the one from the Text Adventure project
+
+Got that working.  When the program starts it aks the user if they want help. While the input loop is polling, it updates 
+a counter which is used as the random number seed.
+
+Arg! The rooms numbers are printing out as garbage...The ZX81 had a custom character set.  Forgot to convert the characters to ASCII.
+
+Remember that thing about text IO working. Well....sort of. The printstr command in DBOS doesn't wrap properly.
+I'll have to implement a smart printstr function that inserts carriage returns.  After some digging it turns out there is
+a command which return system variables such as the width of the screen. 
+
+Arg! The atoi stuff won't work either and will have to be CP/Mized. Oh wait it will.  Good thing I put lots of comments in the old code.
+
+12/21
+Got it asking for a room, but the it says the room entered is invalid.  Looked at atoi stuff, again forgot that ZX81 is non ASCII and that I need to fix
+the char_to_num_function 
+atoi working now!
+
+game hangs in function that generates board
+turns out is was a bug in the way I was calling the random_20 function
+
+copied in more functions. Game is almost playable.
+
+Fixed typo in label for room 20
+
+Added a "play again?" prompt
+
+Turns out the S_SYSVAR BDOS call that can be used to get the console width is for 16-bit CP/M...nuts
+There is a bug where the player gets flown to an invalid room...arg
+
+Game is generally playable though...
+
+12/22
+
+More frustration from play testing.  Added a function to dump the board.  
+Looks like some of the "next to" flags are not getting set up right.
+
+Also something is getting corrupted when the game restarts.  Probably an out of range number from the random number generator, though I can't see how.
+
+Turns out I wasn't looping correctly in my modulus loop.  I was checking for the 'm' flag when I should have be checking for the 'c' flag
+
+Function that dumps the board looks good.  It is showing the flags for the rooms are not being correctly printed during
+gameplay though. Example: The I smell a wumpus message is not being printed out though.
+
+Fixed it!  Stupid bug in the print flags function. Game seems to work now.  Tomorrow more play testing and maybe convert it to the TRS-80 model I
+
+Oh wait...the random number generator is starting with the same seed every time.
+Fixed.  just need to copy the counter that runs while waiting for a keypress into the random number seed.
+
+12/23
+
+My son, Elliot, and I were play-testing and found an error in the room linkage.  Fixed.
+Cleaned up the help text.
