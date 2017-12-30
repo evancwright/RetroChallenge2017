@@ -4,7 +4,23 @@ LEFT_BIT equ 16
 RIGHT_BIT equ 4
 RAND_MASK equ LEFT_BIT + RIGHT_BIT
 
- 
+
+
+
+;a times 10 
+;a will overflow fast 
+*MOD
+a_times_10
+	push bc
+	ld c,a
+	ld b,10
+$lp?  
+	add a,c
+	dec b
+	cp 0
+	jp nz,$lp?	
+	pop bc
+	ret
 
 
 ;generates a random number and mods it by 'b'
@@ -21,10 +37,15 @@ rmod
 
 ;mods a by b		
 *MOD	
-mod 		cp b
+mod 		
+;			push hl
+;			ld hl,moddbg
+;			call printstrcr
+;			pop hl
+			cp a,b
 			jp c,$x?
-			sub b
-			jp mod
+			sub a,b
+ 			jp mod
 ;			ld a,5 
 $x?			ret
 
@@ -32,10 +53,10 @@ $x?			ret
 *MOD	
 div 		
 			push de
-			ld d,0
+			ld d,0 ; loop counter
 $dvlp?		cp b
-			jp m,$x?
-			sub b
+			jp c,$x?
+			sub a,b
 			inc d
 			jp $dvlp?
 $x?			ld a,d
@@ -53,10 +74,14 @@ rand
 		cp RIGHT_BIT
 		jp z,$po? 
 		ld a,(random) 
-		srl a	;   just shift (pad with 0)	
+;		srl a	;   just shift (pad with 0)	
+		rra	;  srl is not 8080 compatible
+		and 127d ; clear the leftmost
+;		unset 7 ;  rotate right the clear leftmost bit
 		jp $x?
 $po?	ld a,(random)
-		srl a	;	pad with a 1
+;		srl a	;	pad with a 1
+		rra	;  srl is not 8080 compatible
 		add a,128 ; stick a 1 on the left 
 $x?		ld (random),a
 		dec a
