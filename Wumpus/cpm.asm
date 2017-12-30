@@ -1,4 +1,11 @@
 ;cpm.asm
+BDOS EQU 5
+RCONF EQU 1
+A_READ EQU 3
+C_STAT EQU 11
+C_RAWIO EQU 6
+WCONF EQU 2  ; "write to console function"
+C_READSTR EQU 0Ah
 
 ;hl points to the start of the cpm buffer
 ;2nd is length of buffer
@@ -32,9 +39,16 @@ $lp? ld a,(hl)
 	jp $lp?
 $x?	ret
 
+; hl contains string
 printstrcr
+	push af
+	push bc
+	push de
 	call printstr
 	call newline
+	pop de
+	pop bc
+	pop af
 	ret
 
 newline
@@ -74,6 +88,38 @@ readline
 ;char in e	
 *MOD
 print_char
+	push af
+	push bc
+	push de
+	push hl
 	ld c,WCONF
 	call BDOS	
+	pop hl
+	pop de
+	pop bc
+	pop af
 	ret
+	
+*MOD
+animate_pit_fall
+	ld b,255
+$lp? push bc
+	ld e,'A'
+	ld c,WCONF
+	call BDOS
+	pop bc
+	push bc
+	ld bc,000ffh
+$il? dec bc 
+	ld a,b
+	cp 0
+	jp nz,$il?
+	ld a,c
+	cp 0
+	jp nz,$il?
+	pop bc
+;	djnz $lp?
+	dec b
+	jp nz,$lp?
+	call newline
+	ret	
