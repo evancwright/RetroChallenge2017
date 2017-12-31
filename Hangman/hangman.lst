@@ -1,0 +1,1022 @@
+                00001 ;hangman.asm
+                00002 ;Evan Wright 2017/2018
+                00003 
+    = 000D      00004 CR EQU 0Dh
+    = 000A      00005 LF EQU 0Ah
+    = 006D      00006 NUM_WORDS EQU 109
+    = 0001      00007 CPM EQU 1
+    = 0005      00008 NUM_GUESSES EQU 5
+                00009 
+                00010         ifdef CPM
+                00011         ORG 100H  ; CP/M
+                00012         else     
+                00013         ORG 5200H ; TRS-80
+                00014         endif
+                00015 
+                00016 START
+                00017 
+                00018 *MOD
+                00019 main
+0100  212605    00020         ld hl,welcomeTxt1
+0103  CD6604    00021         call printstrcr
+0106  212F05    00022         ld hl,welcomeTxt2
+0109  CD6604    00023         call printstrcr
+010C  214E05    00024         ld hl,welcomeTxt3
+010F  CD6604    00025         call printstrcr
+                00026         
+0112  CDC201    00027         call reset
+                00028         
+                00029         ;ask for a letter
+                00030 $ilA
+0115  CDAB03    00031         call draw_game
+0118  210705    00032         ld hl,workingWord
+011B  CD6604    00033         call printstrcr
+011E  210506    00034         ld hl,guessedTxt
+0121  CD5304    00035         call printstr
+0124  211605    00036         ld hl,guessedChars
+0127  CD6604    00037         call printstrcr
+                00038 
+012A  21C105    00039         ld hl,promptText
+012D  CD6604    00040         call printstrcr
+                00041         
+0130  CD8404    00042         call get_char
+0133  320405    00043         ld (curChar),a
+0136  5F        00044         ld e,a
+0137  CDA704    00045         call print_char
+013A  CD7504    00046         call newline
+                00047         
+                00048         ;has it been guess already?
+013D  CD6202    00049         call already_guessed
+0140  3A2F06    00050         ld a,(guessedFlag)
+0143  FE01      00051         cp 1
+0145  CA1501    00052         jp z,$ilA
+                00053         
+                00054         ;is it in the word?
+0148  CDF101    00055         call find_matches
+014B  3A3006    00056         ld a,(foundFlag)
+014E  FE01      00057         cp 1
+0150  CA8B01    00058         jp z,$fmA ;yes
+                00059 
+0153  CD8F02    00060         call store_guess
+                00061         
+0156  3A0405    00062         ld a,(curChar)
+0159  5F        00063         ld e,a
+015A  CDA704    00064         call print_char
+015D  219B05    00065         ld hl,notInWordTxt
+0160  CD6604    00066         call printstrcr
+                00067         
+                00068         
+                00069         ;are we out of guesses?
+0163  3A2505    00070         ld a,(badGuessIndex)
+0166  FE05      00071         cp NUM_GUESSES
+                00072     
+0168  C2BC01    00073         jp nz, $cA
+                00074      
+                00075         ;draw last image
+016B  CDAB03    00076         call draw_game
+                00077          
+016E  212406    00078         ld hl,loseTxt
+0171  CD6604    00079         call printstrcr 
+                00080 
+0174  CDD101    00081         call reveal_word
+                00082         
+0177  21D305    00083         ld hl,playAgainTxt
+017A  CD6604    00084         call printstrcr
+017D  CD8404    00085         call get_char
+0180  FE79      00086         cp 'y'
+0182  C2BF01    00087         jp nz,$quitA    
+0185  CDC201    00088         call reset
+0188  C31501    00089         jp $ilA 
+                00090          
+                00091 $fmA
+018B  CDF101    00092         call find_matches
+                00093         
+                00094         ;has the whole word been guessed?
+018E  CDA502    00095         call player_won
+0191  3A3106    00096         ld a,(winFlag)
+0194  FE01      00097         cp 1
+0196  CA9C01    00098         jp z,won
+                00099         
+                00100         
+0199  C3BC01    00101         jp $cA
+                00102 won
+019C  CDD101    00103         call reveal_word
+                00104 
+019F  CD8603    00105         call draw_win
+01A2  21B005    00106         ld hl,winTxt
+01A5  CD6604    00107         call printstrcr
+01A8  21D305    00108         ld hl,playAgainTxt
+01AB  CD6604    00109         call printstrcr
+01AE  CD8404    00110         call get_char
+01B1  FE79      00111         cp 'y'
+01B3  C2BF01    00112         jp nz,$quitA    
+01B6  CDC201    00113         call reset
+01B9  C31501    00114         jp $ilA
+                00115         
+01BC  C31501    00116 $cA     jp $ilA
+                00117 $quitA  
+                00118         ifdef CPM
+01BF  C30000    00119         jp 0
+                00120         else
+                00121         ret
+                00122         endif
+                00123 
+                00124         
+                00125 reset
+01C2  3E00      00126         ld a,0
+01C4  323106    00127         ld (winFlag),a
+01C7  CD2002    00128         call pick_word
+01CA  CDDE01    00129         call clear_guesses
+01CD  CD4C02    00130         call clearbuf
+                00131         ; call printbuffer
+01D0  C9        00132         ret
+                00133 
+                00134 ;reveals the word       
+                00135 reveal_word
+01D1  21F705    00136         ld hl,revealTxt
+01D4  CD5304    00137         call printstr 
+                00138 
+01D7  2A0505    00139         ld hl,(curWordPtr)
+01DA  CD6604    00140         call printstrcr         
+01DD  C9        00141         ret
+                00142 ;nulls out the 5 guessed letters
+                00143 *MOD
+                00144 clear_guesses
+01DE  3E00      00145         ld a,0
+01E0  322505    00146         ld (badGuessIndex),a ; set index to 0
+01E3  3E00      00147         ld a,0
+01E5  0605      00148         ld b,NUM_GUESSES
+01E7  211605    00149         ld hl,guessedChars
+                00150 $lpB
+01EA  77        00151         ld (hl),a
+01EB  23        00152         inc hl
+01EC  05        00153         dec b
+01ED  C2EA01    00154         jp nz,$lpB
+01F0  C9        00155         ret
+                00156 
+                00157 ;reveals letters and sets foundFlag to 1
+                00158 ;if there was a match
+                00159 *MOD
+                00160 find_matches
+01F1  3E00      00161         ld a,0                          ;clear found flag
+01F3  323006    00162         ld (foundFlag),a
+01F6  210705    00163         ld hl,workingWord
+01F9  ED5B0505  00164         ld de,(curWordPtr)
+01FD  3A0405    00165         ld a,(curChar)
+0200  47        00166         ld b,a
+                00167 $lpC
+0201  1A        00168         ld a,(de)       ; get char from word
+0202  FE00      00169         cp 0
+0204  CA1B02    00170         jp z,$xC    ;hit the end, done
+0207  B8        00171         cp b            ; is it the one being guessed
+0208  C21602    00172         jp nz, $cC
+020B  77        00173         ld (hl),a   ; copy the letter into buffer
+020C  3E01      00174         ld a,1
+020E  E5        00175         push hl
+020F  323006    00176         ld (foundFlag),a
+0212  211206    00177         ld hl,foundTxt
+0215  E1        00178         pop hl
+                00179 $cC
+0216  13        00180         inc de
+0217  23        00181         inc hl
+0218  C30102    00182         jp $lpC
+021B  C9        00183 $xC     ret
+                00184         
+                00185 *MOD
+                00186 check_for_win
+021C  210705    00187         ld hl,workingWord
+                00188 $lpD
+                00189         
+021F  C9        00190 $xD     ret
+                00191         
+                00192 *MOD    
+                00193 pick_word
+0220  CDFE03    00194         call rand ; result in a
+0223  066D      00195         ld b,NUM_WORDS
+0225  CDE603    00196         call mod
+                00197 
+0228  21E505    00198         ld hl,pickingTxt
+022B  CD6604    00199         call printstrcr
+                00200         
+                00201         ;skip that many nulls
+022E  217D06    00202         ld hl,wordlist
+0231  47        00203         ld b,a
+0232  FE00      00204         cp 0
+0234  CA4202    00205         jp z,$dnE
+                00206 $lpE    
+0237  7E        00207         ld a,(hl)
+0238  23        00208         inc hl ; skip past the null to the word
+0239  FE00      00209         cp 0
+023B  C23702    00210         jp nz,$lpE
+                00211     ;found a null
+023E  05        00212         dec b
+023F  C23702    00213         jp nz,$lpE
+                00214 $dnE    
+0242  220505    00215         ld (curWordPtr),hl
+                00216 ;       call printstrcr 
+0245  211F06    00217         ld hl,doneTxt
+0248  CD6604    00218         call printstrcr 
+024B  C9        00219         ret
+                00220 
+                00221 ;clear the working buffer
+                00222 ;by copying in the correct number of _ chards
+                00223 *MOD
+                00224 clearbuf
+024C  2A0505    00225         ld hl,(curWordPtr)
+024F  110705    00226         ld de,workingWord
+                00227 $lpF
+0252  7E        00228         ld a,(hl)
+0253  FE00      00229         cp 0
+0255  CA6002    00230         jp z,$xF        
+0258  3E5F      00231         ld a,'_'        ;copy a _ into the working buffer
+025A  12        00232         ld (de),a
+025B  13        00233         inc de
+025C  23        00234         inc hl
+025D  C35202    00235         jp $lpF
+0260  12        00236 $xF     ld (de),a ;copy the 0 into the end of the working buf
+0261  C9        00237         ret
+                00238 
+                00239 ;char to test in a
+                00240 ;sets the already guessed byte  
+                00241 *MOD
+                00242 already_guessed
+0262  3A0405    00243         ld a,(curChar) ; char -> b
+0265  47        00244         ld b,a
+0266  3E00      00245         ld a,0                          ;clear the flag
+0268  322F06    00246         ld (guessedFlag),a
+026B  211605    00247         ld hl,guessedChars
+026E  7E        00248 $lpG ld a,(hl)
+026F  FE00      00249         cp 0    ;hit end of list - not used yet
+0271  CA8E02    00250         jp z,$xG
+0274  23        00251         inc hl
+0275  B8        00252         cp b    ;equal to curChar?
+0276  C26E02    00253         jp nz,$lpG ; no, keep looping
+                00254         ;if here, they match
+0279  3E01      00255         ld a,1
+027B  322F06    00256         ld (guessedFlag),a      
+027E  218105    00257         ld hl,alreadyUsedTxt
+0281  CD5304    00258         call printstr
+0284  3A0405    00259         ld a,(curChar)
+0287  5F        00260         ld e,a
+0288  CDA704    00261         call print_char
+028B  CD7504    00262         call newline
+028E  C9        00263 $xG     ret
+                00264 
+                00265 ;put the letter in the list of used ones
+                00266 *MOD
+                00267 store_guess     
+028F  3A2505    00268         ld a,(badGuessIndex)
+                00269         ;compute the offset
+0292  111605    00270         ld de,guessedChars
+0295  2600      00271         ld h,0
+0297  6F        00272         ld l,a
+0298  19        00273         add hl,de
+                00274         ;store the char in the array
+0299  3A0405    00275         ld a,(curChar)
+029C  77        00276         ld (hl),a
+                00277         ;increment the index
+029D  3A2505    00278         ld a,(badGuessIndex)
+02A0  3C        00279         inc a
+02A1  322505    00280         ld (badGuessIndex),a
+02A4  C9        00281         ret
+                00282 
+                00283 
+                00284 ;if can't find a '_' in the buffer, winFlag set to 1
+                00285 *MOD
+                00286 player_won
+02A5  210705    00287         ld hl,workingWord
+                00288 $lpI    
+02A8  7E        00289         ld a,(hl)
+02A9  23        00290         inc hl
+02AA  FE00      00291         cp 0            ; hit the end - player won
+02AC  CAB702    00292         jp z,$wI
+02AF  FE5F      00293         cp '_'          
+02B1  CABC02    00294         jp z,$xI        ; lose
+02B4  C3A802    00295         jp $lpI
+02B7  3E01      00296 $wI     ld a,1
+02B9  323106    00297         ld (winFlag),a
+02BC  C9        00298 $xI     ret
+                00299 
+                00300 ;draws no bad guesses
+                00301 draw_zero
+02BD  213206    00302         ld hl,top
+02C0  CD6604    00303         call printstrcr
+02C3  215206    00304         ld hl,post
+02C6  CD6604    00305         call printstrcr
+02C9  CD6604    00306         call printstrcr
+02CC  CD6604    00307         call printstrcr
+02CF  CD6604    00308         call printstrcr
+02D2  217606    00309         ld hl,bottom
+02D5  CD6604    00310         call printstrcr
+02D8  C9        00311         ret
+                00312 
+                00313 ;draws no bad guesses
+                00314 draw_one
+02D9  213206    00315         ld hl,top
+02DC  CD6604    00316         call printstrcr
+02DF  213E06    00317         ld hl,head
+02E2  CD6604    00318         call printstrcr
+02E5  215206    00319         ld hl,post
+02E8  CD6604    00320         call printstrcr
+02EB  CD6604    00321         call printstrcr
+02EE  CD6604    00322         call printstrcr
+02F1  217606    00323         ld hl,bottom
+02F4  CD6604    00324         call printstrcr
+02F7  C9        00325         ret
+                00326 
+                00327 ;draws no bad guesses
+                00328 draw_two
+02F8  213206    00329         ld hl,top
+02FB  CD6604    00330         call printstrcr
+02FE  213E06    00331         ld hl,head
+0301  CD6604    00332         call printstrcr
+0304  215806    00333         ld hl,onearms
+0307  CD6604    00334         call printstrcr
+030A  215206    00335         ld hl,post
+030D  CD6604    00336         call printstrcr
+0310  CD6604    00337                 call printstrcr
+0313  217606    00338         ld hl,bottom
+0316  CD6604    00339         call printstrcr
+0319  C9        00340         ret
+                00341 
+                00342 draw_three
+031A  213206    00343         ld hl,top
+031D  CD6604    00344         call printstrcr
+0320  213E06    00345         ld hl,head
+0323  CD6604    00346         call printstrcr
+0326  215E06    00347         ld hl,botharms
+0329  CD6604    00348         call printstrcr
+032C  215206    00349         ld hl,post
+032F  CD6604    00350         call printstrcr
+0332  CD6604    00351         call printstrcr
+0335  217606    00352         ld hl,bottom
+0338  CD6604    00353         call printstrcr
+033B  C9        00354         ret
+                00355 ;draws no bad guesses
+                00356 draw_four
+033C  213206    00357         ld hl,top
+033F  CD6604    00358         call printstrcr
+0342  213E06    00359         ld hl,head
+0345  CD6604    00360         call printstrcr
+0348  215E06    00361         ld hl,botharms
+034B  CD6604    00362         call printstrcr
+034E  216A06    00363         ld hl,oneleg
+0351  CD6604    00364         call printstrcr
+0354  215206    00365         ld hl,post
+0357  CD6604    00366         call printstrcr
+035A  217606    00367         ld hl,bottom
+035D  CD6604    00368         call printstrcr
+0360  C9        00369         ret
+                00370 
+                00371 ;draws no bad guesses
+                00372 draw_five
+0361  213206    00373         ld hl,top
+0364  CD6604    00374         call printstrcr
+0367  213806    00375         ld hl,rope
+036A  CD6604    00376         call printstrcr
+036D  213E06    00377         ld hl,head
+0370  CD6604    00378         call printstrcr
+0373  215E06    00379         ld hl,botharms
+0376  CD6604    00380         call printstrcr
+0379  217006    00381         ld hl,bothlegs
+037C  CD6604    00382         call printstrcr
+037F  217606    00383         ld hl,bottom
+0382  CD6604    00384         call printstrcr
+0385  C9        00385         ret     
+                00386 
+                00387 draw_win
+0386  213206    00388         ld hl,top
+0389  CD6604    00389         call printstrcr
+038C  215206    00390         ld hl,post
+038F  CD6604    00391         call printstrcr
+0392  214406    00392         ld hl,headwin
+0395  CD6604    00393         call printstrcr
+0398  216406    00394         ld hl,body
+039B  CD6604    00395         call printstrcr
+039E  217006    00396         ld hl,bothlegs
+03A1  CD6604    00397         call printstrcr
+03A4  217606    00398         ld hl,bottom
+03A7  CD6604    00399         call printstrcr
+03AA  C9        00400         ret     
+                00401         
+                00402 draw_game
+03AB  3A2505    00403         ld a,(badGuessIndex)
+03AE  FE00      00404         cp 0
+03B0  CABD02    00405         jp z,draw_zero
+03B3  FE01      00406         cp 1
+03B5  CAD902    00407         jp z,draw_one
+03B8  FE02      00408         cp 2
+03BA  CAF802    00409         jp z,draw_two
+03BD  FE03      00410         cp 3
+03BF  CA1A03    00411         jp z,draw_three
+03C2  FE04      00412         cp 4
+03C4  CA3C03    00413         jp z,draw_four
+03C7  FE05      00414         cp 5
+03C9  CA6103    00415         jp z,draw_five
+03CC  C9        00416         ret
+                00417         
+                00418 *INCLUDE math.asm
+                00419 ;lrs rand for z80
+                00420 
+    = 0010      00421 LEFT_BIT equ 16
+    = 0004      00422 RIGHT_BIT equ 4
+    = 0014      00423 RAND_MASK equ LEFT_BIT + RIGHT_BIT
+                00424 
+                00425 
+                00426 
+                00427 
+                00428 ;a times 10 
+                00429 ;a will overflow fast 
+                00430 *MOD
+                00431 a_times_10
+03CD  C5        00432         push bc
+03CE  4F        00433         ld c,a
+03CF  060A      00434         ld b,10
+                00435 $lpJ  
+03D1  81        00436         add a,c
+03D2  05        00437         dec b
+03D3  FE00      00438         cp 0
+03D5  C2D103    00439         jp nz,$lpJ      
+03D8  C1        00440         pop bc
+03D9  C9        00441         ret
+                00442 
+                00443 
+                00444 ;generates a random number and mods it by 'b'
+                00445 ;and returns it in 'a'
+                00446 *MOD
+                00447 rmod
+03DA  C5        00448         push bc
+03DB  CDFE03    00449         call rand
+03DE  3A5204    00450         ld a,(urand)
+03E1  C1        00451         pop bc
+03E2  CDE603    00452         call mod ; now mod it by 'b' (leave result in 'a')
+                00453         
+03E5  C9        00454         ret     
+                00455 
+                00456 ;mods a by b            
+                00457 *MOD    
+                00458 mod             
+                00459 ;                       push hl
+                00460 ;                       ld hl,moddbg
+                00461 ;                       call printstrcr
+                00462 ;                       pop hl
+03E6  B8        00463                         cp a,b
+03E7  DAEE03    00464                         jp c,$xL
+03EA  90        00465                         sub a,b
+03EB  C3E603    00466                         jp mod
+                00467 ;                       ld a,5 
+03EE  C9        00468 $xL                     ret
+                00469 
+                00470 ;div a by b             
+                00471 *MOD    
+                00472 div             
+03EF  D5        00473                         push de
+03F0  1600      00474                         ld d,0 ; loop counter
+03F2  B8        00475 $dvlpM          cp b
+03F3  DAFB03    00476                         jp c,$xM
+03F6  90        00477                         sub a,b
+03F7  14        00478                         inc d
+03F8  C3F203    00479                         jp $dvlpM
+03FB  7A        00480 $xM                     ld a,d
+03FC  D1        00481                         pop de
+03FD  C9        00482                         ret
+                00483 
+                00484 
+                00485 ;returns # in a                 
+                00486 *MOD
+                00487 rand
+03FE  3A5104    00488                 ld a,(random)
+0401  E614      00489                 and a,RAND_MASK
+0403  FE10      00490                 cp LEFT_BIT
+0405  CA1604    00491                 jp z,$poN
+0408  FE04      00492                 cp RIGHT_BIT
+040A  CA1604    00493                 jp z,$poN 
+040D  3A5104    00494                 ld a,(random) 
+                00495 ;               srl a   ;   just shift (pad with 0)     
+0410  1F        00496                 rra     ;  srl is not 8080 compatible
+0411  E67F      00497                 and 127d ; clear the leftmost
+                00498 ;               unset 7 ;  rotate right the clear leftmost bit
+0413  C31C04    00499                 jp $xN
+0416  3A5104    00500 $poN    ld a,(random)
+                00501 ;               srl a   ;       pad with a 1
+0419  1F        00502                 rra     ;  srl is not 8080 compatible
+041A  C680      00503                 add a,128 ; stick a 1 on the left 
+041C  325104    00504 $xN             ld (random),a
+041F  3D        00505                 dec a
+0420  325204    00506                 ld (urand),a
+0423  C9        00507                 ret
+                00508 
+                00509 ;a contains byte to print
+                00510 *MOD
+                00511 itoa8
+0424  F5        00512                 push af ;save number
+0425  C5        00513                 push bc
+0426  D5        00514                 push de
+0427  47        00515                 ld b,a  ;save a
+0428  3E00      00516                 ld a,0  ;push a null onto the stack
+042A  F5        00517                 push af
+042B  78        00518                 ld a,b ; restore a
+042C  060A      00519 $lpO    ld b,10 ; b is number to mod by
+042E  CDE603    00520                 call mod ; result in a
+0431  47        00521                 ld b,a   ; save a
+0432  C630      00522                 add a,030h       ; convert it to a char
+0434  F5        00523                 push af  ; push char to print onto the stack
+0435  78        00524                 ld a,b  ; restore a
+0436  060A      00525                 ld b,10 ; b is number to divide by
+0438  CDEF03    00526                 call div ; divide a by 10
+043B  FE00      00527                 cp 0
+043D  C22C04    00528                 jp nz,$lpO ; keep moding/dividing until 0
+0440  F1        00529 $prO    pop af     ;pop a character     
+0441  FE00      00530                 cp 0       ;null?
+0443  CA4D04    00531                 jp z,$xO   ;yes - done
+0446  5F        00532                 ld e,a
+0447  CDA704    00533                 call print_char
+044A  C34004    00534                 jp $prO ; keep printing until 0 hit
+044D  D1        00535 $xO             pop de
+044E  C1        00536                 pop bc
+044F  F1        00537                 pop af  ; restore #
+0450  C9        00538                 ret
+                00539                 
+0451  FF        00540 random DB 255
+0452  00        00541 urand DB 0  ; output
+                00542 
+                00543         ifdef CPM       
+                00544 *INCLUDE cpm.asm
+                00545 ;cpm.asm
+    = 0005      00546 BDOS EQU 5
+    = 0001      00547 RCONF EQU 1
+    = 0003      00548 A_READ EQU 3
+    = 000B      00549 C_STAT EQU 11
+    = 0006      00550 C_RAWIO EQU 6
+    = 0002      00551 WCONF EQU 2  ; "write to console function"
+    = 000A      00552 C_READSTR EQU 0Ah
+                00553 
+                00554 ;hl points to the start of the cpm buffer
+                00555 ;2nd is length of buffer
+                00556 ;*MOD
+                00557 ;atoi
+                00558 ;       ld a,0
+                00559 ;       ld (atoirslt),a
+                00560 ;       inc hl
+                00561 ;       ld a,(hl)
+                00562 ;       ld b,a
+                00563 ;       inc hl
+                00564 ;$lp?
+                00565 ;       
+                00566 ;       djnz $lp;
+                00567 ;       ret
+                00568         
+                00569 ;atoirslt
+                00570 
+                00571 ;assumes string is loaded into hl
+                00572 *MOD
+                00573 printstr
+0453  7E        00574 $lpP ld a,(hl)
+0454  FE00      00575         cp 0
+0456  CA6504    00576         jp z,$xP
+0459  5F        00577         ld e,a
+045A  0E02      00578         ld c,WCONF
+045C  E5        00579         push hl
+045D  CD0500    00580         call BDOS
+0460  E1        00581         pop hl
+0461  23        00582         inc hl
+0462  C35304    00583         jp $lpP
+0465  C9        00584 $xP     ret
+                00585 
+                00586 ; hl contains string
+                00587 printstrcr
+0466  F5        00588         push af
+0467  C5        00589         push bc
+0468  D5        00590         push de
+0469  E5        00591         push hl
+046A  CD5304    00592         call printstr
+046D  CD7504    00593         call newline
+0470  E1        00594         pop hl
+0471  D1        00595         pop de
+0472  C1        00596         pop bc
+0473  F1        00597         pop af
+0474  C9        00598         ret
+                00599 
+                00600 newline
+0475  1E0D      00601         ld e,CR
+0477  0E02      00602         ld c,WCONF
+0479  CD0500    00603         call BDOS
+047C  1E0A      00604         ld e,LF
+047E  0E02      00605         ld c,WCONF
+0480  CD0500    00606         call BDOS
+0483  C9        00607         ret
+                00608 
+                00609 *MOD
+                00610 get_char
+                00611         ;loop until char is ready
+                00612 $lpQ 
+0484  3A5104    00613          ld a,(random)
+0487  3C        00614          inc a
+0488  325104    00615          ld (random),a
+                00616          
+048B  0E06      00617          ld c,C_RAWIO
+048D  1EFF      00618          ld e,0FFh;
+048F  CD0500    00619          call BDOS
+0492  FE00      00620          cp 0
+0494  CA8404    00621          jp z,$lpQ       
+0497  C9        00622          ret
+                00623         
+                00624 *MOD    
+                00625 readline
+0498  11DA04    00626         ld de,inbuf
+049B  0E0A      00627         ld c,C_READSTR
+049D  CD0500    00628         call BDOS
+04A0  CD7504    00629         call newline
+04A3  CD7504    00630         call newline
+04A6  C9        00631         ret
+                00632 
+                00633 
+                00634 ;char in e      
+                00635 *MOD
+                00636 print_char
+04A7  F5        00637         push af
+04A8  C5        00638         push bc
+04A9  D5        00639         push de
+04AA  E5        00640         push hl
+04AB  0E02      00641         ld c,WCONF
+04AD  CD0500    00642         call BDOS       
+04B0  E1        00643         pop hl
+04B1  D1        00644         pop de
+04B2  C1        00645         pop bc
+04B3  F1        00646         pop af
+04B4  C9        00647         ret
+                00648         
+                00649 *MOD
+                00650 animate_pit_fall
+04B5  06FF      00651         ld b,255
+04B7  C5        00652 $lpT push bc
+04B8  1E41      00653         ld e,'A'
+04BA  0E02      00654         ld c,WCONF
+04BC  CD0500    00655         call BDOS
+04BF  C1        00656         pop bc
+04C0  C5        00657         push bc
+04C1  01FF00    00658         ld bc,000ffh
+04C4  0B        00659 $ilT dec bc 
+04C5  78        00660         ld a,b
+04C6  FE00      00661         cp 0
+04C8  C2C404    00662         jp nz,$ilT
+04CB  79        00663         ld a,c
+04CC  FE00      00664         cp 0
+04CE  C2C404    00665         jp nz,$ilT
+04D1  C1        00666         pop bc
+                00667 ;       djnz $lp?
+04D2  05        00668         dec b
+04D3  C2B704    00669         jp nz,$lpT
+04D6  CD7504    00670         call newline
+04D9  C9        00671         ret     
+                00672         else
+                00673 *INCLUDE trs80.asm
+                00674         endif
+                00675         
+                00676 inputbuffer
+04DA  28        00677 inbuf   DB 40  ; len
+04DB  00        00678 bytesrd DB 0            
+04DC            00679 chars   DS 40  ; space
+                00680 
+0504  00        00681 curChar DB 0
+0505  0000      00682 curWordPtr DW 0
+0507            00683 workingWord DS 15;
+0516            00684 guessedChars DS 15 ; array of guessedChars
+0525  00        00685 badGuessIndex DB 0 ;
+0526  48616E67  00686 welcomeTxt1 DB 'Hangman!',0h
+      6D 61 6E 21 00         
+052F  43502F4D  00687 welcomeTxt2 DB 'CP/M version by Evan C. Wright',0h
+      20 76 65 72 73 69 6F 6E
+      20 62 79 20 45 76 61 6E
+      20 43 2E 20 57 72 69 67
+      68 74 00               
+054E  50726F63  00688 welcomeTxt3 DB 'Procrastination exercise for Retro Challenge, 2018',0h
+      72 61 73 74 69 6E 61 74
+      69 6F 6E 20 65 78 65 72
+      63 69 73 65 20 66 6F 72
+      20 52 65 74 72 6F 20 43
+      68 61 6C 6C 65 6E 67 65
+      2C 20 32 30 31 38 00   
+0581  596F7520  00689 alreadyUsedTxt DB 'You have already guessed ',0h
+      68 61 76 65 20 61 6C 72
+      65 61 64 79 20 67 75 65
+      73 73 65 64 20 00      
+059B  20697320  00690 notInWordTxt DB ' is not in the word.',0h 
+      6E 6F 74 20 69 6E 20 74
+      68 65 20 77 6F 72 64 2E
+      00                     
+05B0  436F6E67  00691 winTxt DB 'Congratulations!',0h 
+      72 61 74 75 6C 61 74 69
+      6F 6E 73 21 00         
+05C1  456E7465  00692 promptText DB 'Enter a letter...',0h 
+      72 20 61 20 6C 65 74 74
+      65 72 2E 2E 2E 00      
+05D3  506C6179  00693 playAgainTxt DB 'Play again? (y/n)',0h 
+      20 61 67 61 69 6E 3F 20
+      28 79 2F 6E 29 00      
+05E5  5069636B  00694 pickingTxt DB 'Picking a word...',0h 
+      69 6E 67 20 61 20 77 6F
+      72 64 2E 2E 2E 00      
+05F7  54686520  00695 revealTxt DB 'The word was ',0h 
+      77 6F 72 64 20 77 61 73
+      20 00                  
+0605  42616420  00696 guessedTxt DB 'Bad guesses:',0h 
+      67 75 65 73 73 65 73 3A
+      00                     
+0612  4C657474  00697 foundTxt DB 'Letter found',0h
+      65 72 20 66 6F 75 6E 64
+      00                     
+061F  446F6E65  00698 doneTxt DB 'Done',0h 
+      00                     
+0624  2A2A2A47  00699 loseTxt DB '***GULP***',0h 
+      55 4C 50 2A 2A 2A 00   
+062F  00        00700 guessedFlag DB 0 ; word already guessed
+0630  00        00701 foundFlag DB 0
+0631  00        00702 winFlag DB 0
+0632  202D2D2D  00703 top DB  ' --- ',0h
+      20 00                  
+0638  20207C20  00704 rope DB  '  | |',0h
+      7C 00                  
+063E  20204F20  00705 head DB  '  O |',0h
+      7C 00                  
+0644  205C4F2F  00706 headwin DB  ' \O/|  WOHOO!',0h
+      7C 20 20 57 4F 48 4F 4F
+      21 00                  
+0652  20202020  00707 post DB     '    |',0h
+      7C 00                  
+0658  202D2B20  00708 onearms DB  ' -+ |',0h
+      7C 00                  
+065E  202D2B2D  00709 botharms DB ' -+-|',0h
+      7C 00                  
+0664  20207C20  00710 body DB     '  | |',0h
+      7C 00                  
+066A  202F2020  00711 oneleg DB   ' /  |',0h
+      7C 00                  
+0670  202F205C  00712 bothlegs DB ' / \|',0h
+      7C 00                  
+0676  3D3D3D3D  00713 bottom DB  '===== ',0h
+      3D 20 00               
+                00714 wordlist
+                00715 *include words.asm
+067D  61646D69  00716         DB 'admiral',0h
+      72 61 6C 00            
+0685  616E6163  00717         DB 'anaconda',0h
+      6F 6E 64 61 00         
+068E  6265656B  00718         DB 'beekeeper',0h
+      65 65 70 65 72 00      
+0698  626C6162  00719         DB 'blabbering',0h
+      62 65 72 69 6E 67 00   
+06A3  62756D6D  00720         DB 'bummer',0h
+      65 72 00               
+06AA  62757A7A  00721         DB 'buzzer',0h
+      65 72 00               
+06B1  64696666  00722         DB 'difficult',0h
+      69 63 75 6C 74 00      
+06BB  64697A7A  00723         DB 'dizzy',0h
+      79 00                  
+06C1  66697A7A  00724         DB 'fizzy',0h
+      79 00                  
+06C7  66757A7A  00725         DB 'fuzzy',0h
+      79 00                  
+06CD  666C7566  00726         DB 'fluffy',0h
+      66 79 00               
+06D4  686F756E  00727         DB 'hound',0h
+      64 00                  
+06DA  6A6F6B69  00728         DB 'joking',0h
+      6E 67 00               
+06E1  6A6F6B65  00729         DB 'joker',0h
+      72 00                  
+06E7  6F766572  00730         DB 'overjoyed',0h
+      6A 6F 79 65 64 00      
+06F1  706F6E63  00731         DB 'poncho',0h
+      68 6F 00               
+06F8  79656C6C  00732         DB 'yellow',0h
+      6F 77 00               
+06FF  7A69677A  00733         DB 'zigzagging',0h
+      61 67 67 69 6E 67 00   
+070A  73617573  00734         DB 'sausage',0h
+      61 67 65 00            
+0712  626C7562  00735         DB 'blubber',0h
+      62 65 72 00            
+071A  70656E63  00736         DB 'pencil',0h
+      69 6C 00               
+0721  636C6F75  00737         DB 'cloud',0h
+      64 00                  
+0727  6D6F6F6E  00738         DB 'moon',0h
+      00                     
+072C  77617465  00739         DB 'water',0h
+      72 00                  
+0732  636F6D70  00740         DB 'computer',0h
+      75 74 65 72 00         
+073B  7363686F  00741         DB 'school',0h
+      6F 6C 00               
+0742  6E657477  00742         DB 'network',0h
+      6F 72 6B 00            
+074A  68616D6D  00743         DB 'hammer',0h
+      65 72 00               
+0751  77616C6B  00744         DB 'walking',0h
+      69 6E 67 00            
+0759  6D656469  00745         DB 'mediocre',0h
+      6F 63 72 65 00         
+0762  6C697465  00746         DB 'literature',0h
+      72 61 74 75 72 65 00   
+076D  63686169  00747         DB 'chair',0h
+      72 00                  
+0773  77696E64  00748         DB 'window',0h
+      6F 77 00               
+077A  636F7264  00749         DB 'cords',0h
+      73 00                  
+0780  6D757369  00750         DB 'musical',0h
+      63 61 6C 00            
+0788  7A656272  00751         DB 'zebra',0h
+      61 00                  
+078E  78796C6F  00752         DB 'xylophone',0h
+      70 68 6F 6E 65 00      
+0798  70656E67  00753         DB 'penguin',0h
+      75 69 6E 00            
+07A0  686F6D65  00754         DB 'home',0h
+      00                     
+07A5  686F756E  00755         DB 'hound',0h
+      64 00                  
+07AB  66696E61  00756         DB 'final',0h
+      6C 00                  
+07B1  696E6B65  00757         DB 'inked',0h
+      64 00                  
+07B7  74656163  00758         DB 'teacher',0h
+      68 65 72 00            
+07BF  66756E6E  00759         DB 'funny',0h
+      79 00                  
+07C5  77656273  00760         DB 'website',0h
+      69 74 65 00            
+07CD  62616E61  00761         DB 'banana',0h
+      6E 61 00               
+07D4  756E636C  00762         DB 'uncle',0h
+      65 00                  
+07DA  736F6674  00763         DB 'softly',0h
+      6C 79 00               
+07E1  61776573  00764         DB 'awesome',0h
+      6F 6D 65 00            
+07E9  61747461  00765         DB 'attach',0h
+      63 68 00               
+07F0  626C7565  00766         DB 'blue',0h
+      00                     
+07F5  696E7465  00767         DB 'internet',0h
+      72 6E 65 74 00         
+07FE  626F7474  00768         DB 'bottle',0h
+      6C 65 00               
+0805  74696768  00769         DB 'tight',0h
+      74 00                  
+080B  7A6F6E65  00770         DB 'zone',0h
+      00                     
+0810  746F6D61  00771         DB 'tomato',0h
+      74 6F 00               
+0817  70726973  00772         DB 'prison',0h
+      6F 6E 00               
+081E  68796472  00773         DB 'hydro',0h
+      6F 00                  
+0824  636C6561  00774         DB 'cleaning',0h
+      6E 69 6E 67 00         
+082D  74656C69  00775         DB 'telivision',0h
+      76 69 73 69 6F 6E 00   
+0838  73656E64  00776         DB 'send',0h
+      00                     
+083D  66726F67  00777         DB 'frog',0h
+      00                     
+0842  636F6666  00778         DB 'coffee',0h
+      65 65 00               
+0849  626F6F6B  00779         DB 'book',0h
+      00                     
+084E  7A6F6F6D  00780         DB 'zooming',0h
+      69 6E 67 00            
+0856  66616C6C  00781         DB 'falling',0h
+      69 6E 67 00            
+085E  6576696C  00782         DB 'evily',0h
+      79 00                  
+0864  67616D65  00783         DB 'gamer',0h
+      72 00                  
+086A  6A756963  00784         DB 'juice',0h
+      65 00                  
+0870  6D6F6E69  00785         DB 'moniter',0h
+      74 65 72 00            
+0878  63617074  00786         DB 'captain',0h
+      61 69 6E 00            
+0880  626F6E64  00787         DB 'bonding',0h
+      69 6E 67 00            
+0888  6C6F7564  00788         DB 'loudly',0h
+      6C 79 00               
+088F  74687564  00789         DB 'thudding',0h
+      64 69 6E 67 00         
+0898  67756974  00790         DB 'guitar',0h
+      61 72 00               
+089F  73686176  00791         DB 'shaving',0h
+      69 6E 67 00            
+08A7  68616972  00792         DB 'hair',0h
+      00                     
+08AC  736F6363  00793         DB 'soccer',0h
+      65 72 00               
+08B3  77617465  00794         DB 'water',0h
+      72 00                  
+08B9  7261636B  00795         DB 'racket',0h
+      65 74 00               
+08C0  7461626C  00796         DB 'table',0h
+      65 00                  
+08C6  6C617465  00797         DB 'late',0h
+      00                     
+08CB  6D656469  00798         DB 'media',0h
+      61 00                  
+08D1  6465736B  00799         DB 'desktop',0h
+      74 6F 70 00            
+08D9  666C6970  00800         DB 'flipper',0h
+      70 65 72 00            
+08E1  636C7562  00801         DB 'club',0h
+      00                     
+08E6  666C7969  00802         DB 'flying',0h
+      6E 67 00               
+08ED  736D6F6F  00803         DB 'smooth',0h
+      74 68 00               
+08F4  6D6F6E73  00804         DB 'monster',0h
+      74 65 72 00            
+08FC  70757270  00805         DB 'purple',0h
+      6C 65 00               
+0903  67756172  00806         DB 'guardian',0h
+      64 69 61 6E 00         
+090C  626F6C64  00807         DB 'bold',0h
+      00                     
+0911  68797065  00808         DB 'hyperlink',0h
+      72 6C 69 6E 6B 00      
+091B  70726573  00809         DB 'presenter',0h
+      65 6E 74 65 72 00      
+0925  776F726C  00810         DB 'world',0h
+      64 00                  
+092B  6E617469  00811         DB 'national',0h
+      6F 6E 61 6C 00         
+0934  636F6D6D  00812         DB 'comment',0h
+      65 6E 74 00            
+093C  656C656D  00813         DB 'element',0h
+      65 6E 74 00            
+0944  6D616769  00814         DB 'magic',0h
+      63 00                  
+094A  6C696F6E  00815         DB 'lion',0h
+      00                     
+094F  73616E64  00816         DB 'sand',0h
+      00                     
+0954  63727573  00817         DB 'crust',0h
+      74 00                  
+095A  746F6173  00818         DB 'toast',0h
+      74 00                  
+0960  68756E74  00819         DB 'hunter',0h
+      65 72 00               
+0967  666F7265  00820         DB 'forest',0h
+      73 74 00               
+096E  666F7261  00821         DB 'foraging',0h
+      67 69 6E 67 00         
+0977  73696C65  00822         DB 'silent',0h
+      6E 74 00               
+097E  706F6E67  00823         DB 'pong',0h
+      00                     
+0983  77617665  00824         DB 'waves',0h 
+      73 00                  
+                00825         END START
+
+
+$CA             01BC  $CC             0216  $DNE            0242  
+$DVLPM          03F2  $FMA            018B  $ILA            0115  
+$ILT            04C4  $LPB            01EA  $LPC            0201  
+$LPD            021F  $LPE            0237  $LPF            0252  
+$LPG            026E  $LPI            02A8  $LPJ            03D1  
+$LPO            042C  $LPP            0453  $LPQ            0484  
+$LPT            04B7  $PON            0416  $PRO            0440  
+$QUITA          01BF  $WI             02B7  $XC             021B  
+$XD             021F  $XF             0260  $XG             028E  
+$XI             02BC  $XL             03EE  $XM             03FB  
+$XN             041C  $XO             044D  $XP             0465  
+ALREADYUSEDTXT  0581  ALREADY_GUESSED 0262  ANIMATE_PIT_FAL 04B5  
+A_READ          0003  A_TIMES_10      03CD  BADGUESSINDEX   0525  
+BDOS            0005  BODY            0664  BOTHARMS        065E  
+BOTHLEGS        0670  BOTTOM          0676  BYTESRD         04DB  
+CHARS           04DC  CHECK_FOR_WIN   021C  CLEARBUF        024C  
+CLEAR_GUESSES   01DE  CPM             0001  CR              000D  
+CURCHAR         0504  CURWORDPTR      0505  C_RAWIO         0006  
+C_READSTR       000A  C_STAT          000B  DIV             03EF  
+DONETXT         061F  DRAW_FIVE       0361  DRAW_FOUR       033C  
+DRAW_GAME       03AB  DRAW_ONE        02D9  DRAW_THREE      031A  
+DRAW_TWO        02F8  DRAW_WIN        0386  DRAW_ZERO       02BD  
+FIND_MATCHES    01F1  FOUNDFLAG       0630  FOUNDTXT        0612  
+GET_CHAR        0484  GUESSEDCHARS    0516  GUESSEDFLAG     062F  
+GUESSEDTXT      0605  HEAD            063E  HEADWIN         0644  
+INBUF           04DA  INPUTBUFFER     04DA  ITOA8           0424  
+LEFT_BIT        0010  LF              000A  LOSETXT         0624  
+MAIN            0100  MOD             03E6  NEWLINE         0475  
+NOTINWORDTXT    059B  NUM_GUESSES     0005  NUM_WORDS       006D  
+ONEARMS         0658  ONELEG          066A  PICKINGTXT      05E5  
+PICK_WORD       0220  PLAYAGAINTXT    05D3  PLAYER_WON      02A5  
+POST            0652  PRINTSTR        0453  PRINTSTRCR      0466  
+PRINT_CHAR      04A7  PROMPTTEXT      05C1  RAND            03FE  
+RANDOM          0451  RAND_MASK       0014  RCONF           0001  
+READLINE        0498  RESET           01C2  REVEALTXT       05F7  
+REVEAL_WORD     01D1  RIGHT_BIT       0004  RMOD            03DA  
+ROPE            0638  START           0100  STORE_GUESS     028F  
+TOP             0632  URAND           0452  WCONF           0002  
+WELCOMETXT1     0526  WELCOMETXT2     052F  WELCOMETXT3     054E  
+WINFLAG         0631  WINTXT          05B0  WON             019C  
+WORDLIST        067D  WORKINGWORD     0507  

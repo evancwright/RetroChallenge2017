@@ -1,17 +1,13 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Wumpus.asm
 ;8080 CP/M version of Hunt the Wumpus
-;Evan Wright 2017
-;Assemble with Z80asm -com wumpus.asm
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	; IOBYTE equ
-BDOS EQU 5
-RCONF EQU 1
-A_READ EQU 3
-C_STAT EQU 11
-C_RAWIO EQU 6
-WCONF EQU 2  ; "write to console function"
-C_READSTR EQU 0Ah
+;Evan c. Wright 2017
+;Assemble with Z80asm -com wumpus.asm for a CP/M COM file
+;Assemble with Z80asm -nh wumpus.asm for a CMD file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	
+
 CR EQU 0Dh
 LF EQU 0Ah
 WUMPUS_BIT EQU 1
@@ -20,7 +16,6 @@ BAT_BIT EQU 4
 NEXTTOBATS_BIT EQU 8
 PIT_BIT EQU 16
 NEXTTOPIT_BIT EQU 32
-S_SYSVAR EQU 31h ; 16 bit CP/M only :(
 
 
 	ORG 100H  ; CP/M
@@ -30,8 +25,9 @@ START
 *MOD
 main
 	;save the stack ptr
-	ld (stacksave),sp
-	push hl
+;	ld (stacksave),sp
+;	push hl
+	ld sp,stack	
 	
 	ld hl,welcome
 	call printstrcr
@@ -61,13 +57,14 @@ $ip?
 	cp 'd'
 	call z,dump_board
 	jp $ip?
-$x?	ld hl,bye
+$x?	
+quit
+	ld hl,bye
 	call printstrcr
-	ld sp,(stacksave)
-	pop hl 
-quit	
+;quit	
+;	ld sp,(stacksave)
+;	pop hl 	
 	jp 0
- 
  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;This subroutine set the flag in a room then sets the flags in the adjacent rooms
@@ -97,14 +94,16 @@ set_room_flag:
     ld (hl),a; store the bat bit
     
     ;shift the bit left and apply the flag to the adjacent rooms
-    sla c
-    
+    push af
+	ld a,c
+	;need to clear carry flag
+	rlca
+	; sla 1  ; no 8080 left shift? Are you kidding me?
+	ld c,a
+    pop af
 	pop hl; restore room address for subroutine
     
 	pop af ; restore room
-	
-	;
-;    call set_adjacent_room_flags
 	
     ld b,c ; save flag
 	ld c,a
@@ -130,6 +129,10 @@ set_flag_in_adjacent
 	push af
 	push hl
 	push bc
+	
+;	ld hl,setflg ;debug message
+;	call printstrcr
+	
 	ld (curRoom),a
 	call set_room_addr
 	pop bc
@@ -174,7 +177,9 @@ flag_loop:
     pop hl ;restore addr of adjacent room byte
     
     inc hl ; increment src add
-    djnz flag_loop
+    ;djnz flag_loop
+	dec b
+	jp nz,flag_loop
     ret
 	
 *MOD
@@ -185,6 +190,7 @@ set_up_game:
     	
 	call clear_all_flags
 
+	
 	ld hl,wumpuslurk
 	call printstrcr
 	
@@ -261,9 +267,10 @@ get_room_ptr:
     ld d, 0
     ld e, c ;room number
     ld a, 6 ; size of room data
-    call DE_Times_A ; result in HL
+;    call DE_Times_A ; result in HL
+	call DE_MUL_A
     ld de,room1
-    add hl,de
+    add hl,de  ; add starting offset
     pop de
     pop bc
     pop af
@@ -285,7 +292,7 @@ set_room_addr
     ld d, 0
     ld e, a
     ld a, 6; size of room in bytes (2 byte name, 3 rooms, 1 flags)
-    call DE_Times_A ; result in hl now add it to base
+    call DE_Mul_A ; result in hl now add it to base
     ld bc, room1; load base addr
     add hl, bc ; add offset to base
     
@@ -316,7 +323,9 @@ validate_move_loop:
     cp c
     jp z, valid_move
     inc hl
-    djnz validate_move_loop
+;    djnz validate_move_loop
+	dec b
+	jp nz,validate_move_loop
     ld a, 0
     ret
 valid_move:
@@ -493,33 +502,12 @@ fly_player_to_new_room
 	pop af
 	ret
 	
-*MOD
-animate_pit_fall
-	ld b,255
-$lp? push bc
-	ld e,'A'
-	ld c,WCONF
-	call BDOS
-	pop bc
-	push bc
-	ld bc,0ffffh
-$il? dec bc 
-	ld a,b
-	cp 0
-	jp nz,$il?
-	ld a,c
-	cp 0
-	jp nz,$il?
-	pop bc
-	djnz $lp?
-	call newline
-	ld hl,pitdeath
-	call printstrcr
-	ret
-	
+
 ; returns 1-20 (inclusive) in 'a'
 *MOD
 random_20
+;	ld a,5
+;	ret
 	push bc
 	ld b,19d  ; 0-19
 	call rmod
@@ -531,44 +519,32 @@ random_20
 	jp c,$x?
 	ld hl,badrand
 	call printstrcr
-$x?	pop bc
+$x?	;push af
+	;call itoa8
+    ;pop af
+	pop bc
+	ret
+
+*MOD 
+DE_MUL_A
+	push af
+	push bc
+	push de
+	 ld b,a  ; loop counter
+	 ld h,0 ; accumulator
+	 ld l,0
+$lp? ld a,b
+	 cp 0
+	 jp z,$x?
+	 add hl,de
+;	 djnz $lp?
+	dec b
+	jp nz,$lp?
+$x? pop de
+	pop bc
+	pop af
 	ret
 	
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;Inputs:
-;     DE and A are factors
-;Outputs:
-;     A is not changed
-;     B is 0
-;     C is not changed
-;     DE is not changed
-;     HL is the product
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-*MOD 
-DE_Times_A:
-
-;Time:
-;     342+6x
-;
-     ld b,8          ;7           7
-     ld hl,0         ;10         10
-       add hl,hl     ;11*8       88
-       rlca          ;4*8        32
-       jr nc,$+3     ;(12|18)*8  96+6x
-         add hl,de   ;--         --
-       djnz $-5      ;13*7+8     99
-     ret             ;10         10    
-Multiply:                        ; this routine performs the operation HL=D*E
-  ld hl,0                        ; HL is used to accumulate the result
-  ld a,d                         ; checking one of the factors; returning if it is zero
-  or a
-  ret z
-  ld b,d                         ; one factor is in B
-  ld d,h                         ; clearing D (H is zero), so DE holds the other factor
-MulLoop:                         ; adding DE to HL exactly B times
-  add hl,de
-  djnz MulLoop
-  ret
 	
 get_flags_byte:
 	push de
@@ -653,7 +629,7 @@ clear_all_flags
     ld a,0h	
     ld hl,room1
     ld bc,5h
-    add hl, bc
+    add hl,bc
   
     ld de,6
     ld b,20 ; # of rooms
@@ -661,8 +637,9 @@ clear_flags_loop
     ;add 6 to get the addr of the next byte
     ld (hl),a ; zero out the byte
     add hl,de ; jump ahead six bytes to the next flags byte
-    djnz clear_flags_loop
-     
+ ;   djnz clear_flags_loop
+    dec b
+	jp nz,clear_flags_loop
     ret	
 
 *MOD
@@ -679,7 +656,9 @@ cpm_atoi
 	ld hl,inbuf+1
 $lp?	
 	inc hl
-	djnz $lp? ;
+;	djnz $lp? ;
+	dec b
+	jp nz,$lp?
 	
 	;hl now points to rightmost char
 	;c contains size of buffer
@@ -687,8 +666,7 @@ $lp?
 	ret
 	
 ;converts text in a buffer to an integer
-;this function takes the address of the rightmost
-;char
+;this function t akes the address of the rightmost
 ;hl address of rightmost byte
 ;c number of bytes in the buffer
 ;result is returned in bc
@@ -698,17 +676,17 @@ atoi:
     ;hl will contain the src address
     ;a will be loop counter
     ld a, c    
-    ld bc,0000
-    ld de,0001
+    ld bc,0
+    ld de,1
 atoiloop:
     push af ; save loop counter
     push hl ; save src addr (free up hl)
     push bc ; save sum (free up bc)
     
-    ld c, (hl)
+    ld c,(hl)
     call char_to_num;
     ld a, c
-    cp 0FFh
+    cp 0ffh
     jp z, invalid
     
     ;multiply de * the place value (de)
@@ -740,33 +718,30 @@ atoiloop:
     jp nz, atoiloop;
 
     ;finished loop - number was valid
-  ;  ld hl, $01
- ;   push hl
     ret
 invalid:
     pop bc
     pop hl
     pop af
-;    ld bc, $FFFF
-;  push bc
-    ret
-
- 
+    ret 
 	
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;  this routine performs the operation HL=DE*A
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-Mul8:                            ; this routine performs the operation HL=DE*A
-  ld hl,0                        ; HL is used to accumulate the result
-  ld b,8                         ; the multiplier (A) is 8 bits wide
+*MOD
+Mul8    
+  push af
+  push bc
+  push de
+  ld hl,0                       
+  ld b,a                        
 Mul8Loop:
-  rrca                           ; putting the next bit into the carry
-  jp nc,Mul8Skip                 ; if zero, we skip the addition (jp is used for speed)
-  add hl,de                      ; adding to the product if necessary
-Mul8Skip:
-  sla e                          ; calculating the next auxiliary product by shifting
-  rl d                            ; DE one bit leftwards (refer to the shift instructions!)
-  djnz Mul8Loop
+  add hl,de	
+  dec b
+  jp nz,Mul8Loop
+  pop de
+  pop bc
+  pop af
   ret
 	
 
@@ -1050,14 +1025,17 @@ help8 DB "  When you have located the wumpus, fire an arrow into its lair to sla
 wumpuswinstxt DB " Wumpus: ",0h
 playerwinstxt DB "Player: ",0h
 badrand DB "BAD RANDOM NUMBER!",0h
+;setflg DB "SETTING FLAG.",0h
 pitdbg DB "PIT",0
 draftdbg DB "DRAFT",0
 batsdbg DB "BATS",0
 squeakdbg DB "NEXTTOBATS",0
 wumpdbg DB "WUMPUS",0
 smelldbg DB "SMELL",0
+moddbg DB "MOD...",0
 	DB 0
-
+	DEFS 64 ; stack area
+stack DB 0 ; top
 	
 
 	END START
