@@ -110,15 +110,47 @@ printcr
 	ret
 
 get_char
+	ld a,r		;reload random seed
+	ld (rand),a
 	call readline
 	ld a,(inbuf)
 	ret	
 
 ;char in e
 print_char	
+	
 	ld a,e
 	call CRTBYTE
 	ret
+
+print_chara	
+	push bc
+	call CRTBYTE
+	pop bc
+	ret
+
+;make hl point to the right most char
+;in the buffer pointed to by hl
+*MOD
+pos_atoi
+	ld a,(hl) ; already at end?
+	cp 0
+	jp z,$x?
+
+	push de
+	push hl	; hl->de
+	pop de
+	inc de
+$lp?	
+	ld a,(de)
+	cp 0
+	jp z,$x?
+	inc de
+	inc hl
+	jp $lp?
 	
+	pop de
+$x?	ret
+
 hcur dw 0
 	
