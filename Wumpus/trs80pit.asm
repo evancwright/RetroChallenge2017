@@ -73,7 +73,7 @@ $fl
 	
 	pop bc
  	djnz $fl
-$x? call get_char
+$x? ;call get_char
 	call CLS
 	ret
 
