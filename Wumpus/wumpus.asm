@@ -29,11 +29,16 @@ START
 *MOD
 main
 	;save the stack ptr
+	
 ;	ld (stacksave),sp
 ;	push hl
-	ld sp,stack	
 
+	ifdef CPM
+	ld sp,stack	
+	endif
+	
 	ifdef TRS80
+	ld (stacksave),sp
 	call intro_screen
 	call animate_teeth
 	endif
@@ -47,6 +52,8 @@ main
 	call printstrcr 
 	call get_char	
 	cp 'y'
+	call z,print_help
+	cp 'Y'
 	call z,print_help
 	call set_up_game
 
@@ -79,7 +86,10 @@ quit
 	ld hl,bye
 	call printstrcr
 ;quit	
-;	ld sp,(stacksave)
+	ifdef TRS80
+	ld sp,(stacksave)
+	call CLS
+	endif
 ;	pop hl 
 
 	ifdef CPM
@@ -364,6 +374,7 @@ handle_move
     call cpm_atoi ; result in bc
 	else
 	ld hl,INBUF
+	call pos_atoi
 	call atoi
 	endif
 	
@@ -389,6 +400,7 @@ handle_shoot
     call cpm_atoi ; result in bc
 	else
 	ld hl,INBUF
+	call pos_atoi
 	call atoi ;	
 	endif
     call validate_move ; expects room in c
@@ -494,6 +506,8 @@ handle_hazards:
 	call play_again
 	cp 'y'
 	jp z,quit
+	cp 'Y'
+	jp z,quit
 	call set_up_game
     jp $x? 
 check_for_pit:    
@@ -510,6 +524,8 @@ check_for_pit:
 
 	call play_again 
 	cp 'y'
+	jp z,quit
+	cp 'Y'
 	jp z,quit
 	jp $x?
 check_for_bats:
@@ -688,6 +704,12 @@ clear_flags_loop
 print_help
 	ld hl,help
 	call printstrcr
+	
+	ifdef TRS80
+	ld hl,hitenter
+	call printstrcr
+	call get_char
+	endif
 	ret
 
 
@@ -1024,9 +1046,9 @@ room20:
 welcome DB "Welcome to Hunt the Wumpus",0
 	DB 0
 	ifdef CPM
-author DB "CP/M Version by Evan Wright, 2017",0
+author DB "CP/M Version by Evan Wright, 2017-18",0
 	else
-author DB "TRS-80" Version by Evan Wright, 2017",0
+author DB "TRS-80" Version by Evan Wright, 2017-18",0
 	endif
 	
 flagsSav DB 0	
@@ -1044,6 +1066,7 @@ baddir DB "You can't move/shoot that way.",0h
 batswarning DB "*RUSTLE* *RUSTLE* You hear vampire bats nearby.",0	
 batmove DB "*FLAP* *FLAP* *FLAP* Giant vampire bats have flown you to a different cave.",0	
 pitwarning DB "You feel a draft.",0	
+hitenter DB "Press ENTER to continue.",0;
 wumpuswarning DB "I SMELL A WUMPUS!",0	
 whichroom DB "Which room?",0	
 youcantgothatway DB "That's not a valid room.",0	
