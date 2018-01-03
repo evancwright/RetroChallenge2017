@@ -1,0 +1,11 @@
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\bin\Debug\TRS80ScreenMaker.exe.config
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\bin\Debug\TRS80ScreenMaker.exe
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\bin\Debug\TRS80ScreenMaker.pdb
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.csprojResolveAssemblyReference.cache
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.Form1.resources
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.Properties.Resources.resources
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.csproj.GenerateResource.Cache
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.csproj.CoreCompileInputs.cache
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.exe
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.pdb
+c:\users\evan\source\repos\TRS80ScreenMaker\TRS80ScreenMaker\obj\Debug\TRS80ScreenMaker.CodeForm.resources
