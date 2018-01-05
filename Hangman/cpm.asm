@@ -39,6 +39,17 @@ $lp? ld a,(hl)
 	jp $lp?
 $x?	ret
 
+*MOD
+wait_keyup
+	;loop until char is NOT ready
+$lp? 
+	 ld c,C_RAWIO
+	 ld e,0FFh;
+	 call BDOS
+	 cp 0
+	 jp nz,$lp?	 
+	 ret
+
 ; hl contains string
 printstrcr
 	push af
@@ -75,6 +86,9 @@ $lp?
 	 call BDOS
 	 cp 0
 	 jp z,$lp?	 
+	 push af
+	 call wait_keyup
+	 pop af
 	 ret
 	
 *MOD	
@@ -125,3 +139,7 @@ $il? dec bc
 	jp nz,$lp?
 	call newline
 	ret	
+	
+tty_pit_fall
+	
+ 	ret	
