@@ -1,10 +1,12 @@
 ;hangman.asm
 ;Evan Wright 2017/2018
-
+;Project for the Retro Challenge
+;for CP/M assemble with: z80am -com hangman.asm
+;for TRS-80 assemble with: z80am -nh hangman.asm
 CR EQU 0Dh
 LF EQU 0Ah
 NUM_WORDS EQU 109
-CPM EQU 1
+CPM EQU 1  ; comment this out for TRS-80 build
 NUM_GUESSES EQU 5
 
 	ifdef CPM
@@ -17,6 +19,17 @@ START
 
 *MOD
 main
+	ifdef CPM
+	ld hl,ttyprmpt
+	call printstrcr
+	call get_char
+	cp 'y'
+	jp nz,$n?	
+	ld a,1
+	ld (termFlg),a
+	call term_cls
+$n?
+	endif
 	ld hl,welcomeTxt1
 	call printstrcr
 	ld hl,welcomeTxt2
@@ -161,8 +174,12 @@ find_matches
 	ld a,0				;clear found flag
 	ld (foundFlag),a
 	ld hl,workingWord
-	ld de,(curWordPtr)
-	ld a,(curChar)
+;	ld de,(curWordPtr) ; ld de,() not 8800 compliant
+	ld a,(curWordPtr+1)
+	ld d,a
+	ld a,(curWordPtr)
+	ld e,a
+ 	ld a,(curChar)
 	ld b,a
 $lp?
 	ld a,(de)	; get char from word
@@ -385,6 +402,9 @@ draw_five
 	ret	
 
 draw_win
+	ifdef CPM
+	call term_cls
+	endif
 	ld hl,top
 	call printstrcr
 	ld hl,post
@@ -400,6 +420,11 @@ draw_win
 	ret	
 	
 draw_game
+	ld a,(termFlg)
+	cp 0
+	jp z,$n?
+	call term_cls
+$n?	
 	ld a,(badGuessIndex)
 	cp 0
 	jp z,draw_zero
@@ -447,6 +472,7 @@ guessedTxt DB 'Bad guesses:',0h
 foundTxt DB 'Letter found',0h
 doneTxt DB 'Done',0h 
 loseTxt DB '***GULP***',0h 
+termFlg DB 0
 guessedFlag DB 0 ; word already guessed
 foundFlag DB 0
 winFlag DB 0
@@ -462,5 +488,8 @@ oneleg DB   ' /  |',0h
 bothlegs DB ' / \|',0h
 bottom DB  '===== ',0h
 wordlist
+	ifdef CPM
+*INCLUDE term.asm
+	endif
 *include words.asm
 	END START
