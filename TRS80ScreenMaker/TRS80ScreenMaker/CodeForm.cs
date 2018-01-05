@@ -34,11 +34,23 @@ namespace TRS80ScreenMaker
                         else
                             textBox1.Text += "20h";
                     }
-
                     textBox1.Text += "\r\n";
-
                 }
             }
+        }
+
+        public string CodeText
+        {
+
+            get
+            {
+                return textBox1.Text;
+            }
+            set
+            {
+                textBox1.Text = value;
+            }
+
         }
 
         public CodeForm()
