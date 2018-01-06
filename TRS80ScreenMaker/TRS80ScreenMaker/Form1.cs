@@ -123,7 +123,7 @@ namespace TRS80ScreenMaker
                         cf.CodeText += ",";
 
                     if (screen[x+j, y+i] == 'X')
-                        cf.CodeText += "255h";
+                        cf.CodeText += "0ffh";
                     else
                         cf.CodeText += "20h";
                 }
