@@ -109,10 +109,14 @@ printcr
 	pop af
 	ret
 
+*MOD
 get_char
 	call readline
 	ld a,(inbuf)
-	ret	
+	cp 5Bh ; ' 1 past uppercase 'Z'
+	jp nc,$x?	
+	add a,32  ; convert to lowercase
+$x?	ret	
 
 ;char in e
 print_char	
