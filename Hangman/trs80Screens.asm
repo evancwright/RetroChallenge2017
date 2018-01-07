@@ -33,6 +33,7 @@ $lp?
 
 draw_win
 	call draw_background
+	call erase_rope
 	ld hl,win
 	call copy_data
 	ret
@@ -102,6 +103,21 @@ $lp?
 	pop bc
 	djnz $lp?
 
+	ret
+	
+*MOD
+erase_rope
+	ld de,VRAM+166
+	ld a,20h ; space
+	ld (de),a
+	ld b,2
+$lp?
+	ex de,hl	; save de -> hl
+	ld de,64
+	add hl,de
+	ex de,hl
+	ld (de),a	; overwrite rope with a space
+	djnz $lp?
 	ret
 	
 ;right half of screen
