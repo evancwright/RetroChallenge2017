@@ -107,3 +107,5 @@
 	DB 'silent',0h
 	DB 'pong',0h
 	DB 'waves',0h 
+	DB 'narwahl',0h 
+	DB 'volcano',0h 

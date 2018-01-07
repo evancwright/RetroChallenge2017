@@ -5,10 +5,18 @@
 ;for TRS-80 assemble with: z80am -nh hangman.asm
 CR EQU 0Dh
 LF EQU 0Ah
-NUM_WORDS EQU 109
-CPM EQU 1  ; comment this out for TRS-80 build
-NUM_GUESSES EQU 5
+NUM_WORDS EQU 111
 
+
+;CPM EQU 1  ; comment this out for TRS-80 build
+TRS80 EQU 1 ;
+
+	ifdef CPM
+NUM_GUESSES EQU 5
+	else
+NUM_GUESSES EQU 7
+	endif
+	
 	ifdef CPM
 	ORG 100H  ; CP/M
 	else	 
@@ -19,6 +27,8 @@ START
 
 *MOD
 main
+	ld (stack),sp
+	
 	ifdef CPM
 	ld hl,ttyprmpt
 	call printstrcr
@@ -29,6 +39,9 @@ main
 	ld (termFlg),a
 	call term_cls
 $n?
+	else
+	ld a,r		;see random number gen	
+	ld (rand),a
 	endif
 	ld hl,welcomeTxt1
 	call printstrcr
@@ -41,7 +54,11 @@ $n?
 	
 	;ask for a letter
 $il?
-	call draw_game
+	ifdef TRS80
+	call CLS
+	else
+		call draw_game
+	endif
 	ld hl,workingWord
 	call printstrcr
 	ld hl,guessedTxt
@@ -52,11 +69,18 @@ $il?
 	ld hl,promptText
 	call printstrcr
 	
+	ifdef TRS80
+	call draw_game
+	endif
+	
 	call get_char
 	ld (curChar),a
+	
+	ifdef CPM
 	ld e,a
 	call print_char
 	call newline
+	endif
 	
 	;has it been guess already?
 	call already_guessed
@@ -95,6 +119,11 @@ $il?
 	
 	ld hl,playAgainTxt
 	call printstrcr
+	
+	ifdef TRS80
+	call draw_game
+	endif
+	
 	call get_char
 	cp 'y'
 	jp nz,$quit?	
@@ -114,12 +143,18 @@ $fm?
 	jp $c?
 won
 	call reveal_word
-
+	ifdef CPM
 	call draw_win
+	endif
 	ld hl,winTxt
 	call printstrcr
 	ld hl,playAgainTxt
 	call printstrcr
+	
+	ifdef TRS80
+	call draw_win
+	endif
+	
 	call get_char
 	cp 'y'
 	jp nz,$quit?	
@@ -131,6 +166,9 @@ $quit?
 	ifdef CPM
 	jp 0
 	else
+	ld de,(stack)
+	ld (stack),de
+	call cls
 	ret
 	endif
 
@@ -314,6 +352,7 @@ $w?	ld a,1
 	ld (winFlag),a
 $x?	ret
 
+	ifdef CPM
 ;draws no bad guesses
 draw_zero
 	ld hl,top
@@ -400,11 +439,12 @@ draw_five
 	ld hl,bottom
 	call printstrcr
 	ret	
-
-draw_win
-	ifdef CPM
-	call term_cls
 	endif
+
+	ifdef CPM
+draw_win
+	call term_cls
+	
 	ld hl,top
 	call printstrcr
 	ld hl,post
@@ -418,7 +458,9 @@ draw_win
 	ld hl,bottom
 	call printstrcr
 	ret	
-	
+	endif
+
+	ifdef CPM
 draw_game
 	ld a,(termFlg)
 	cp 0
@@ -439,6 +481,7 @@ $n?
 	cp 5
 	jp z,draw_five
 	ret
+	endif
 	
 *INCLUDE math.asm
 
@@ -446,13 +489,16 @@ $n?
 *INCLUDE cpm.asm
 	else
 *INCLUDE trs80.asm
+*INCLUDE trs80screens.asm
 	endif
-	
+
+	ifdef CPM
 inputbuffer
 inbuf 	DB 40  ; len
 bytesrd DB 0		
 chars	DS 40  ; space
-
+	endif
+	
 curChar DB 0
 curWordPtr DW 0
 workingWord DS 15;
@@ -476,6 +522,8 @@ termFlg DB 0
 guessedFlag DB 0 ; word already guessed
 foundFlag DB 0
 winFlag DB 0
+stack DW 0
+	ifdef CPM
 top DB  ' --- ',0h
 rope DB  '  | |',0h
 head DB  '  O |',0h
@@ -487,6 +535,7 @@ body DB     '  | |',0h
 oneleg DB   ' /  |',0h
 bothlegs DB ' / \|',0h
 bottom DB  '===== ',0h
+	endif
 wordlist
 	ifdef CPM
 *INCLUDE term.asm
