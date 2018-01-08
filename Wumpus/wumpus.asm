@@ -6,8 +6,10 @@
 ;Assemble with Z80asm -nh wumpus.asm for a CMD file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	
-;CPM EQU 1
-TRS80 EQU 1
+;UNCOMMENT THE  EQU FOR THE TARGET PLATFORM
+;AND COMMENT OUT THE OTHER ONE	
+CPM EQU 1
+;TRS80 EQU 1
 
 CR EQU 0Dh
 LF EQU 0Ah
@@ -35,6 +37,19 @@ main
 
 	ifdef CPM
 	ld sp,stack	
+	;ask user if playing in a terminal
+	ld hl,ttyprmpt
+	call printstrcr
+	call get_char
+	cp 'y'
+	jp z,$y?
+	ld a,0
+	ld (cpmtty),a
+	jp $z?
+$y?
+	ld hl,set40col ;doesn't seem to work
+	call printstr
+$z?	
 	endif
 	
 	ifdef TRS80
@@ -217,6 +232,11 @@ flag_loop:
 *MOD
 set_up_game:
     	
+	ld a,(cpmtty)
+	cp 1
+	jp nz,$n?
+	call term_cls
+$n?		
 	ld hl,setuptxt
 	call printstrcr
     	
@@ -432,6 +452,7 @@ move_player:
 shoot_arrow
 
 	ifdef CPM
+	call animate_arrow
     ld hl,shootarrowtxt
     call printstrcr
 	else
@@ -504,11 +525,6 @@ handle_hazards:
 	ld hl,youhavedied
 	call printstrcr
 	call play_again
-	cp 'y'
-	jp z,quit
-	cp 'Y'
-	jp z,quit
-	call set_up_game
     jp $x? 
 check_for_pit:    
     ;check for pit
@@ -523,10 +539,6 @@ check_for_pit:
 	ld (wumpusscore),a
 
 	call play_again 
-	cp 'y'
-	jp z,quit
-	cp 'Y'
-	jp z,quit
 	jp $x?
 check_for_bats:
     ;check for bats
@@ -710,6 +722,18 @@ print_help
 	call printstrcr
 	call get_char
 	endif
+	
+	ifdef CPM
+	ld a,(cpmtty)
+	cp 1
+	jp nz,$w?
+	ld hl,hitenter
+	call printstrcr
+	call get_char
+	call term_cls
+$w?
+	endif
+
 	ret
 
 
@@ -974,7 +998,19 @@ intro_screen
 	ret
 	endif
 
-	
+;bc contains delay length	
+*MOD
+delay
+$lp?
+	dec bc
+	ld a,b
+	cp 0
+	jp nz,$lp?
+	ld a,c
+	cp 0
+	jp nz,$lp?
+$x?	ret
+
 *INCLUDE math.asm
 
 	ifdef CPM
@@ -1087,7 +1123,7 @@ playereaten2 DB "As you stop to ponder the fatal implications, the Wumpus sneaks
 victorymessage1 DB "A deafening roar fills the caverns as the wumpus falls dead.",0
 victorymessage2 DB "Congratulations...You have killed the wumpus!!!",0
 help
-help1 DB "In this mazes of cave lives a fearsome creature known as the Wumpus which you must kill with your single arrow."
+help1 DB "In this maze of cave lives a fearsome creature known as the Wumpus which you must kill with your single arrow."
 help2 DB "  Should you venture into the cave containing the Wumpus, it will surely devour you."
 help3 DB "  Other hazards exist besides the wumpus. There are two bottomless pits."
 help4 DB "  If you are adjacent to a pit, you will feel a draft."
@@ -1108,6 +1144,7 @@ smelldbg DB "SMELL",0
 moddbg DB "MOD...",0
 	DB 0
 	
+ 	
 	ifdef TRS80
 *INCLUDE trs80title.asm
 *INCLUDE teeth_data.asm
