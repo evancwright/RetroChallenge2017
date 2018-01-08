@@ -8,8 +8,8 @@ LF EQU 0Ah
 NUM_WORDS EQU 111
 
 
-;CPM EQU 1  ; comment this out for TRS-80 build
-TRS80 EQU 1 ;
+CPM EQU 1  ; comment this out for TRS-80 build
+;TRS80 EQU 1 ;
 
 	ifdef CPM
 NUM_GUESSES EQU 5
@@ -27,7 +27,9 @@ START
 
 *MOD
 main
+	ifdef TRS80
 	ld (stack),sp
+	endif
 	
 	ifdef CPM
 	ld hl,ttyprmpt
