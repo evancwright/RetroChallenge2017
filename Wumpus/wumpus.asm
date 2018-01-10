@@ -282,12 +282,15 @@ $n?
     ld c,BAT_BIT; bat bit
 	call set_room_flag  ; room in c, flag in a
   
-      ;put player at start
+      ;put player at start, but not in pit
 ;    ld a,1
+$lp?
     call random_20 ; put random in a
     ld (curRoom),a
     call set_room_addr
-
+	call  get_flags_byte ; a
+	and PIT_BIT
+	jp nz,$lp?
 
 	ld hl,done
 	call printstrcr
@@ -561,8 +564,8 @@ fly_player_to_new_room
 	push hl
 	ld hl,batmove
 	call printstrcr
-;	call random_20
-	ld a,20
+	call random_20
+;	ld a,20
 	ld (curRoom),a	
 	call set_room_addr
 ;	call print_room_label
