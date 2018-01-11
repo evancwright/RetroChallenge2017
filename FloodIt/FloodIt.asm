@@ -184,11 +184,11 @@ push_square
 	jp z,$oob?
 	;does the color of the square match the old color?
 	call get_square_color ; symbol in 'a'
-;	;does it match the old color?
-;	ld b,a
-;	ld a,(oldSym)
-;	cp b
-;	jp nz,$x? ; no don't enqueue it
+	;does it match the old color?
+	ld b,a
+	ld a,(oldSym)
+	cp b
+	jp nz,$nm? ; no don't enqueue it
 	
 	;has it already been filled?
 	ld hl,(flagPtr)
@@ -216,6 +216,10 @@ push_square
 	inc hl
 	ld (queueIndex),hl
 	jp $x?
+$nm?
+	ld hl,nomatch
+	call printstrcr
+	jp $x?		
 $oob?
 	ld hl,oob
 	call printstrcr
@@ -281,9 +285,9 @@ get_square_ptr
 	
 	ld b,e  ; loop counter (y)
 	ld a,d ; accumulator (starts with x in it)
-	ld e,a
-	ld d,0
-	ld a,b
+	ld e,a ;(d->e)
+	ld d,0 ; zero out d
+	ld a,b ;do we have to loop
 	cp 0
 	jp z,$o?
 $lp?
@@ -298,7 +302,7 @@ $o?
 	add hl,de ; add the initial offset
 	ld (squarePtr),hl
 	
-	;the flagptr will be 1 board wid`th forward
+	;the flagptr will be 1 board width forward
 	ld de,WIDTH*HEIGHT
 	add hl,de
 	ld (flagPtr),hl
@@ -354,8 +358,9 @@ $lp?
 clear_flags
 	ld bc,WIDTH*HEIGHT
 	ld de,filledFlgs
-	ld a,0
-$lp? 
+	
+$lp?
+	ld a,0 
 	ld (de),a
 	inc de
 	dec bc
@@ -462,9 +467,11 @@ queueIndex DW 0
 symbols
 	DB 'abcdef',0	
 oob 
-	DB "out of bounds.",0h	
+	DB 'out of bounds.',0h	
 alf 
-	DB "already filled.",0h
+	DB 'already filled.',0h
+nomatch 
+	DB 'does not match.',0h	
 pushed DB "pushed ",0h
 pushing DB "pushing ",0h
 popping DB "popping ",0h
