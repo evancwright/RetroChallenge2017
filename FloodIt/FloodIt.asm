@@ -132,8 +132,8 @@ fill_square
 	ld a,(newSym)
 	ld hl,(squarePtr)
 	ld (hl),a
-	;mark it as filled
-	
+
+	;mark it as filled	
 	ld hl,(flagPtr)
 	;store a 1
 	ld a,1		
@@ -158,7 +158,7 @@ get_square_color
 	ld a,(hl) ;	dereference it
 	pop hl
 	pop de
-v	ret
+	ret
 	
 	
 ;if rect is out of bounds, it is not pushed
@@ -277,9 +277,12 @@ get_square_ptr
 	push bc
 	push de
 	push hl
-	ld b,e  ; loop counter
-	ld de,0 ; accumulator
 	
+	
+	ld b,e  ; loop counter (y)
+	ld a,d ; accumulator (starts with x in it)
+	ld e,a
+	ld d,0
 	ld a,b
 	cp 0
 	jp z,$o?
@@ -290,15 +293,12 @@ $lp?
 	dec b
 	jp nz,$lp?
 $o?	
- 	
-	ld h,0
-	ld l,e
-	add hl,de  ; add x 
-	ld de,board
+  	
+ 	ld hl,board
 	add hl,de ; add the initial offset
 	ld (squarePtr),hl
 	
-	;the flagptr will be 1 board with forward
+	;the flagptr will be 1 board wid`th forward
 	ld de,WIDTH*HEIGHT
 	add hl,de
 	ld (flagPtr),hl
@@ -326,7 +326,7 @@ $lp?
 	 
 	push de ; save addr
 	ld hl,symbols
-	;call flip_hl
+	
 	ld d,0
 	ld e,a
 	add hl,de
@@ -349,17 +349,6 @@ $lp?
 	
 	ret
 
-;byte swaps HL
-flip_hl	
-	push af
-	push bc
-	ld a,h	; swap bytes
-	ld b,l
-	ld l,a
-	ld h,b
-	pop bc
-	pop af
-	ret
 	
 *MOD
 clear_flags
