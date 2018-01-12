@@ -38,6 +38,8 @@ $gc?
 	jp z,$f?
 	cp 'e'
 	jp z,$f?
+	cp 'f'
+	jp z,$f?
 	cp 'q'
 	jp z,$x?
 	jp $gc?
@@ -72,7 +74,7 @@ $lp?
 	; ld de,(queue) ; z80 only
 	ld hl,(queue)
 	ex de,hl
-	call debug_pop
+;	call debug_pop
 	
  	;shift everything down 2 bytes
 	call shift_queue
@@ -109,6 +111,8 @@ $lp?
 	ld e,a
 	call push_square ;(x,y-1)
 	pop de
+	
+	;call get_char
 	
 	;is the queue empty?
 	;do 16 bit compare using add 0 to set zero flg
@@ -170,23 +174,34 @@ push_square
 	push de
 	push hl
 	
-	call debug_push
+;	call debug_push
 
-	ld a,d
-	cp 255  ; -1
+	ld a,d	; x==-1?
+	cp 255  
 	jp z,$oob?
-	cp WIDTH  ; right edge
+	cp WIDTH  ; x==right edge?
 	jp z,$oob?
 	ld a,e
-	cp 255  ; -1
+	cp 255  ;y==-1?
 	jp z,$oob?
 	cp HEIGHT  ; bottom edge
 	jp z,$oob?
 	;does the color of the square match the old color?
 	call get_square_color ; symbol in 'a'
 	;does it match the old color?
-	ld b,a
-	ld a,(oldSym)
+	ld b,a ;new symbol in b
+;	push bc 
+;	push de
+;	ld e,a
+;	ld hl,symbolis
+;	call printstr
+;	ld e,a
+;	call print_char
+;	call newline
+;	pop de
+;	pop bc
+
+	ld a,(oldSym)	
 	cp b
 	jp nz,$nm? ; no don't enqueue it
 	
@@ -196,19 +211,24 @@ push_square
 	cp 1
 	jp z,$alf?
 	
+	;mark it as examined
+	ld a,1
+	ld (hl),a
+	
 	;put de in the end of the queue
+;	ld hl,pushed
+;	call printstrcr
+
 	push de ; save data
 	ld hl,(queueIndex)
 	ld de,queue
 	add hl,de ; add base offset
 	pop de ;restore data
 
-	ld hl,pushed
-	call printstrcr
 	
-	ld (hl),d
-	inc hl
 	ld (hl),e
+	inc hl
+	ld (hl),d
 	
 	;add 2 bytes to the queue ptr
 	ld hl,(queueIndex)
@@ -217,16 +237,16 @@ push_square
 	ld (queueIndex),hl
 	jp $x?
 $nm?
-	ld hl,nomatch
-	call printstrcr
+;	ld hl,nomatch
+;	call printstrcr
 	jp $x?		
 $oob?
-	ld hl,oob
-	call printstrcr
+;	ld hl,oob
+;	call printstrcr
 	jp $x?;	
 $alf?
-	ld hl,alf
-	call printstrcr
+;	ld hl,alf
+;	call printstrcr
 	jp $x?;		
 $x?	pop hl
 	pop de
@@ -317,13 +337,9 @@ $o?
 create_board
 	ld de,board
 	ld bc,WIDTH*HEIGHT
-	
 
-
-$lp?	
-	
+$lp?		
 	push bc
-	
 
 	ld b,6
 	call rmod ; result in a
@@ -334,7 +350,6 @@ $lp?
 	ld d,0
 	ld e,a
 	add hl,de
-	;call flip_h
 	 
 	ld a,(hl)
 	pop de ; restore addr
@@ -472,8 +487,8 @@ alf
 	DB 'already filled.',0h
 nomatch 
 	DB 'does not match.',0h	
-pushed DB "pushed ",0h
-pushing DB "pushing ",0h
-popping DB "popping ",0h
-	
+pushed DB 'pushed ',0h
+pushing DB 'pushing ',0h
+popping DB 'popping ',0h
+symbolis DB 'symbol is ',0h	
 	END START
