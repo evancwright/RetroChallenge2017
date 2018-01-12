@@ -7,7 +7,7 @@ CPM EQU 1
 HEIGHT EQU 20
 WIDTH EQU 20
 NUM_SYMBOLS EQU 6
-
+MAX_TURNS EQU 100
 
 
 	ifdef CPM
@@ -65,10 +65,10 @@ $f?
 	
 	ld a,(wonFlg)
 	cp 1
-	jp z,$g?
+	jp z,$win?
 	
 	ld a,(turns)
-    cp 30
+    cp MAX_TURNS
 	jp nz,$lp?
 	
 	;lost
@@ -77,6 +77,9 @@ $f?
 	call get_char
 	
 	jp $g?
+$win?
+	ld hl,bell
+	call printstr
 $x?	
 	ifdef CPM
 	jp 0
@@ -492,6 +495,8 @@ print_help
 
 *MOD
 print_turns
+	ld hl,turnstxt
+	call printstr
 	ld a,(turns)
 	call itoa8
 	ld hl,outof
@@ -675,6 +680,7 @@ helpprmpt
 	DB 'Would you like instructions? (y/n)',0h
 	db 0
 gameovermsg DB '   GAME  OVER   ',0
+turnstxt  DB 'Turns: ',0
 helpxt1 DB 'The goal of the game is to make the board all the same symbol.',0h	
 helpxt2 DB 'This is done by bucket-filing the top,left symbol.',0h
 helpxt3 DB 'To start a fill, press the key for the symbol to fill with (a-f).',0h
