@@ -131,31 +131,6 @@ print_char
 	pop bc
 	pop af
 	ret
-	
-*MOD
-animate_pit_fall
-	ld b,255
-$lp? push bc
-	ld e,'A'
-	ld c,WCONF
-	call BDOS
-	pop bc
-	push bc
-	ld bc,000ffh
-$il? dec bc 
-	ld a,b
-	cp 0
-	jp nz,$il?
-	ld a,c
-	cp 0
-	jp nz,$il?
-	pop bc
-;	djnz $lp?
-	dec b
-	jp nz,$lp?
-	call newline
-	ret	
-	
 
 showcrsr DB ESC,'[?25h',0
 hidecrsr DB ESC,'[?25l',0
