@@ -59,8 +59,24 @@ $gc?
 	jp z,$x?
 	jp $gc?
 $f?
+	
 	call start_fill
-	jp $lp?
+	call player_wins
+	
+	ld a,(wonFlg)
+	cp 1
+	jp z,$g?
+	
+	ld a,(turns)
+    cp 30
+	jp nz,$lp?
+	
+	;lost
+	call show_game_over
+	call print_board
+	call get_char
+	
+	jp $g?
 $x?	
 	ifdef CPM
 	jp 0
@@ -86,6 +102,7 @@ start_fill
 	ld (turns),a
 	
 	call print_turns
+	
 	ret	
 
 *MOD
@@ -417,6 +434,47 @@ $lp?
 
 	ret
 
+*MOD	
+show_game_over
+	
+	ld hl,board+162
+	ld a,' '
+	ld b,3
+ 
+	push bc
+	ld a,' '
+	ld b,16	
+$il?
+	ld (hl),a ; copy space
+	inc hl
+	dec b
+	jp nz,$il?
+
+	ld de,WIDTH-16
+	add hl,de
+
+	ld de,gameovermsg
+	ld b,16	
+$il2?
+	ld a,(de)
+	inc de
+	ld (hl),a ; copy space
+	inc hl
+	
+	dec b
+	jp nz,$il2?
+	;skip to next line	
+	ld b,16		
+	ld de,4 ; skip ahead
+	add hl,de
+	ld a,' '
+$il3?
+	ld (hl),a ; copy space
+	inc hl
+	dec b
+	jp nz,$il3?
+	ret
+	
 *MOD
 print_help
 	ld hl,helpxt1
@@ -616,7 +674,7 @@ title7 DB 'CP/M version by Evan Wright,2018',0h
 helpprmpt
 	DB 'Would you like instructions? (y/n)',0h
 	db 0
-
+gameovermsg DB '   GAME  OVER   ',0
 helpxt1 DB 'The goal of the game is to make the board all the same symbol.',0h	
 helpxt2 DB 'This is done by bucket-filing the top,left symbol.',0h
 helpxt3 DB 'To start a fill, press the key for the symbol to fill with (a-f).',0h
