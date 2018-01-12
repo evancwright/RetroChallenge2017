@@ -20,9 +20,24 @@ START
 	
 *MOD
 main
+	call print_title
+	
+	ld hl,helpprmpt
+	call printstrcr
+	call get_char
+	cp 'y'
+	jp z,$h?
+	cp 'Y'
+	jp z,$h?
+	jp $g?
+$h?
+	call print_help
+$g?	
 	call create_board
 $lp?	
 	call print_board
+	call print_turns
+
 $gc?
 	call get_char
 	ld (newSym),a
@@ -64,11 +79,20 @@ start_fill
 	ld de,0 ; (x=0,y=0)
 	call push_square
 	call fill
+	
+	;turns++
+	ld a,(turns)
+	inc a
+	ld (turns),a
+	
+	call print_turns
 	ret	
 
 *MOD
 fill
 $lp?
+
+	call print_board
 
 	;pop the 1st thing in the queue
 	; ld de,(queue) ; z80 only
@@ -335,6 +359,10 @@ $o?
 ;generates a random board
 *MOD
 create_board
+	;turns=0
+	ld a,0
+	ld (turns),a
+
 	ld de,board
 	ld bc,WIDTH*HEIGHT
 
@@ -390,6 +418,82 @@ $lp?
 	ret
 
 *MOD
+print_help
+	ld hl,helpxt1
+	call printstrcr
+	ld hl,helpxt2
+	call printstrcr
+	ld hl,helpxt3
+	call printstrcr
+	ld hl,helpxt4
+	call printstrcr
+	ld hl,helpxt5
+	call printstrcr
+	call get_char
+	ret
+
+*MOD
+print_turns
+	ld a,(turns)
+	call itoa8
+	ld hl,outof
+	call printstrcr
+	ret
+	
+*MOD	
+print_title
+	
+	ld hl,cpmhome
+	call printstr
+	ld hl,cpmcls
+	call printstr
+
+	ld hl,title1
+	ld b,6
+	ld de,70
+$lp?
+	call printstrcr
+	add hl,de
+	dec b
+	jp nz,$lp?
+	
+	call newline
+	ld hl,title7
+	call printstrcr
+	
+	ret
+
+;set (wonFlg)
+*MOD
+player_wins
+	
+	ld a,1
+	ld (wonFlg),a
+	
+	ld bc,WIDTH*HEIGHT
+	ld hl,board
+	ld a,(hl)
+	ld d,a
+$lp?
+	ld a,(hl)
+	cp d  
+	jp nz,$n?
+	
+	inc hl
+	dec bc
+	ld a,b
+	cp 0
+	jp nz,$lp?
+	ld a,c
+	cp 0
+	jp nz,$lp?
+	jp $x?
+$n? ;not won
+	ld a,0
+	ld (wonFlg),a
+$x?	ret
+	
+*MOD
 debug_push
 	push de
 	push hl
@@ -429,6 +533,14 @@ debug_pop
 print_board
 	push bc
 	push hl
+	
+	ld hl,cpmhome
+	call printstr
+	
+	ld hl,cpmcls
+	call printstr
+
+	
 	ld hl,board
 	ld b,HEIGHT
 $ol?
@@ -469,7 +581,7 @@ squarePtr DW 0
 flagPtr DW 0
 oldSym DB 0
 newSym DB 0
-turn DB 0
+turns DB 0
 board
 	DS WIDTH*HEIGHT
 filledFlgs
@@ -478,9 +590,10 @@ boardEnd
 queue
 	DS WIDTH*HEIGHT*2
 queueIndex DW 0
-
+wonFlg DB 0
 symbols
 	DB 'abcdef',0	
+outof DB '/30',0h
 oob 
 	DB 'out of bounds.',0h	
 alf 
@@ -491,4 +604,22 @@ pushed DB 'pushed ',0h
 pushing DB 'pushing ',0h
 popping DB 'popping ',0h
 symbolis DB 'symbol is ',0h	
+
+title1 DB ' ______   __     ______   ______   _____      _______   _______   __ ',0h
+title2 DB '|  ____| |  |   |  __  | |  __  | |  ___ \   |__   __| |__   __| |  |',0h
+title3 DB '| |___   |  |   | |  | | | |  | | | |   | |     | |       | |    |  |',0h
+title4 DB '|  ___|  |  |   | |  | | | |  | | | |   | |     | |       | |    |__|',0h
+title5 DB '| |      |  |_  | |__| | | |__| | | |___| |   __| |__     | |     __ ',0h
+title6 DB '|_|      |____| |______| |______| |_____ /   |_______|    |_|    [__]',0h
+ db 0
+title7 DB 'CP/M version by Evan Wright,2018',0h
+helpprmpt
+	DB 'Would you like instructions? (y/n)',0h
+	db 0
+
+helpxt1 DB 'The goal of the game is to make the board all the same symbol.',0h	
+helpxt2 DB 'This is done by bucket-filing the top,left symbol.',0h
+helpxt3 DB 'To start a fill, press the key for the symbol to fill with (a-f).',0h
+helpxt4 DB 'The game ends when the board is all one symbol or you turns are used up.',0h
+helpxt5 DB 'Press any key to continue...',0,0h
 	END START
