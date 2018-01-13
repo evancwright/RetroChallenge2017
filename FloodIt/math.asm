@@ -98,12 +98,13 @@ itoa8
 		ld a,0	;push a null onto the stack
 		push af
 		ld a,b ; restore a
-$lp?	ld b,10 ; b is number to mod by
+$lp?	ld e,a ; save a copy of a 
+		ld b,10 ; b is number to mod by
 		call mod ; result in a
-		ld b,a 	 ; save a
+		ld b,a 	 ; save a in b
 		add a,030h	 ; convert it to a char
  		push af	 ; push char to print onto the stack
-		ld a,b	; restore a
+		ld a,e	; restore a from e
 		ld b,10 ; b is number to divide by
 		call div ; divide a by 10
 		cp 0
@@ -118,6 +119,7 @@ $x?		pop de
 		pop bc
 		pop af	; restore #
 		ret
+
 		
 random DB 255
 urand DB 0  ; output
