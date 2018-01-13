@@ -4,10 +4,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 CPM EQU 1
-HEIGHT EQU 20
-WIDTH EQU 20
+HEIGHT EQU 14
+WIDTH EQU 14
 NUM_SYMBOLS EQU 6
-MAX_TURNS EQU 100
+MAX_TURNS EQU 25
 
 
 	ifdef CPM
@@ -73,13 +73,17 @@ $f?
 	
 	;lost
 	call show_game_over
-	call print_board
-	call get_char
-	
-	jp $g?
+	call print_board	
+
 $win?
 	ld hl,bell
 	call printstr
+	;play again?
+	ld hl,playagainmsg
+	call printstrcr
+	call get_char
+	cp 'y'
+	jp z,$g?
 $x?	
 	ifdef CPM
 	jp 0
@@ -440,24 +444,24 @@ $lp?
 *MOD	
 show_game_over
 	
-	ld hl,board+162
+	ld hl,board+85
 	ld a,' '
 	ld b,3
  
-	push bc
+
 	ld a,' '
-	ld b,16	
+	ld b,12	
 $il?
 	ld (hl),a ; copy space
 	inc hl
 	dec b
 	jp nz,$il?
 
-	ld de,WIDTH-16
+	ld de,WIDTH-12
 	add hl,de
 
 	ld de,gameovermsg
-	ld b,16	
+	ld b,12	
 $il2?
 	ld a,(de)
 	inc de
@@ -467,8 +471,8 @@ $il2?
 	dec b
 	jp nz,$il2?
 	;skip to next line	
-	ld b,16		
-	ld de,4 ; skip ahead
+	ld b,12		
+	ld de,2 ; skip ahead
 	add hl,de
 	ld a,' '
 $il3?
@@ -513,7 +517,7 @@ print_title
 
 	ld hl,title1
 	ld b,6
-	ld de,70
+	ld de,70 ; stripes are 70 wide
 $lp?
 	call printstrcr
 	add hl,de
@@ -656,7 +660,7 @@ queueIndex DW 0
 wonFlg DB 0
 symbols
 	DB 'abcdef',0	
-outof DB '/30',0h
+outof DB '/25',0h
 oob 
 	DB 'out of bounds.',0h	
 alf 
@@ -679,7 +683,8 @@ title7 DB 'CP/M version by Evan Wright,2018',0h
 helpprmpt
 	DB 'Would you like instructions? (y/n)',0h
 	db 0
-gameovermsg DB '   GAME  OVER   ',0
+playagainmsg DB 'Play again (y/n)',0	
+gameovermsg DB ' GAME  OVER ',0
 turnstxt  DB 'Turns: ',0
 helpxt1 DB 'The goal of the game is to make the board all the same symbol.',0h	
 helpxt2 DB 'This is done by bucket-filing the top,left symbol.',0h
