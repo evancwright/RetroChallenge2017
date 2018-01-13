@@ -1,10 +1,8 @@
 ;lrs rand for z80
 
-LEFT_BIT equ 16
-RIGHT_BIT equ 4
+LEFT_BIT equ 32
+RIGHT_BIT equ 1
 RAND_MASK equ LEFT_BIT + RIGHT_BIT
-
-
 
 
 ;a times 10 
@@ -38,15 +36,10 @@ rmod
 ;mods a by b		
 *MOD	
 mod 		
-;			push hl
-;			ld hl,moddbg
-;			call printstrcr
-;			pop hl
 			cp a,b
 			jp c,$x?
 			sub a,b
  			jp mod
-;			ld a,5 
 $x?			ret
 
 ;div a by b		
@@ -67,23 +60,30 @@ $x?			ld a,d
 ;returns # in a			
 *MOD
 rand
-		ld a,(random)
+		ld a,(randlo)
 		and a,RAND_MASK
 		cp LEFT_BIT
 		jp z,$po?
 		cp RIGHT_BIT
 		jp z,$po? 
-		ld a,(random) 
-;		srl a	;   just shift (pad with 0)	
-		rra	;  srl is not 8080 compatible
-		and 127d ; clear the leftmost
-;		unset 7 ;  rotate right the clear leftmost bit
+		;shift top
+		ld hl,randhi
+		rr (hl)
+		; clear the leftmost bit of hi byte
+		ld a,(randhi)
+		ld b,127 
+		and a,b ; 01111111
+		ld (randhi),a
 		jp $x?
-$po?	ld a,(random)
-;		srl a	;	pad with a 1
-		rra	;  srl is not 8080 compatible
-		add a,128 ; stick a 1 on the left 
-$x?		ld (random),a
+$po?	ld hl,randhi
+		rr (hl)
+
+		;mask on the 1
+		ld a,(randhi)
+		ld b,128
+		add a,b ; stick a 1 on the left 
+		ld (randhi),a
+$x?		ld (randlo),a
 		dec a
 		ld (urand),a
 		ret
@@ -120,6 +120,6 @@ $x?		pop de
 		pop af	; restore #
 		ret
 
-		
-random DB 255
+randhi DB 255		
+randlo DB 255
 urand DB 0  ; output
