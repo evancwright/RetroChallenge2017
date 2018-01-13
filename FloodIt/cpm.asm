@@ -93,9 +93,9 @@ newline
 get_char
 	;loop until char is ready
 $lp? 
-	 ld a,(random)
+	 ld a,(randlo)
 	 inc a
-	 ld (random),a
+	 ld (randlo),a
 	 
 	 ld c,C_RAWIO
 	 ld e,0FFh;
@@ -137,6 +137,7 @@ hidecrsr DB ESC,'[?25l',0
 cpmcls 	DB ESC,'[2J',0
 cpmhome DB ESC,'[;H',0
 set40col DB ESC, '[=0',0
+bell DB 7,7,7,0
 inputbuffer
 inbuf 	DB 40  ; len
 bytesrd DB 0		
