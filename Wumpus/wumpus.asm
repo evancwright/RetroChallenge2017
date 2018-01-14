@@ -37,6 +37,13 @@ main
 
 	ifdef CPM
 	ld sp,stack	
+	
+	ld hl,welcome
+	call printstrcr
+	ld hl,author
+	call printstrcr
+	call newline
+
 	;ask user if playing in a terminal
 	ld hl,ttyprmpt
 	call printstrcr
@@ -56,12 +63,13 @@ $z?
 	ld (stacksave),sp
 	call intro_screen
 	call animate_teeth
-	endif
+	
 	
 	ld hl,welcome
 	call printstrcr
 	ld hl,author
 	call printstrcr
+	endif
 	call newline
 	ld hl,helpprompt
 	call printstrcr 
