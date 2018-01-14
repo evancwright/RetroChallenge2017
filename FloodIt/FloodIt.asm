@@ -76,8 +76,8 @@ $f?
 	call print_board	
 
 $win?
-	ld hl,bell
-	call printstr
+;	ld hl,bell
+;	call printstr
 	;play again?
 	ld hl,playagainmsg
 	call printstrcr
@@ -94,10 +94,15 @@ $x?
 
 *MOD 
 start_fill
+	call save_cursor
 	call clear_flags
 	
 	ld a,(board)
 	ld (oldSym),a
+	ld b,a
+	ld a,(newSym)
+	cp b
+	jp z,$x?
 	
 	ld de,0 ; (x=0,y=0)
 	call push_square
@@ -108,15 +113,16 @@ start_fill
 	inc a
 	ld (turns),a
 	
+	call restore_cursor
 	call print_turns
 	
-	ret	
+$x?	ret	
 
 *MOD
 fill
 $lp?
 
-	call print_board
+;	call print_board
 
 	;pop the 1st thing in the queue
 	; ld de,(queue) ; z80 only
@@ -129,7 +135,7 @@ $lp?
 
 	;fill it (de)
 	call fill_square
-	
+	call fill_scr_pos
 	;ret	
 	;enqueue its neighbors
 	push de
@@ -559,6 +565,54 @@ $n? ;not won
 	ld a,0
 	ld (wonFlg),a
 $x?	ret
+
+save_cursor
+	ld hl,ansisave
+	call printstr
+	ret
+
+restore_cursor
+	ld hl,ansirestor
+	call printstr
+	ret
+	
+;moves to de	
+;fills with (newSym)
+fill_scr_pos
+	push af
+	push de
+	push hl
+	
+	ld h,d  ; save pos
+	ld l,e
+	
+	ld e,ESC
+	call print_char
+	ld e,ESC
+	call print_char
+	ld e,h
+	call print_char
+	ld e,';'
+	call print_char
+	ld e,l
+	call print_char
+	ld e,'H'
+	call print_char
+	
+	;delete existing char
+	ld e,127
+	call print_char
+	
+	;print new char
+	ld a,(newSym)
+	ld e,a
+	call print_char
+	
+	pop hl
+	pop de
+	pop af
+	ret
+
 	
 *MOD
 debug_push
