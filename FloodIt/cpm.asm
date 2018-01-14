@@ -137,6 +137,9 @@ hidecrsr DB ESC,'[?25l',0
 cpmcls 	DB ESC,'[2J',0
 cpmhome DB ESC,'[;H',0
 set40col DB ESC, '[=0',0
+ansisave DB ESC,'[s',0
+ansirestor DB ESC,'[u',0
+ansidel DB 127 ; 
 bell DB 7,7,7,0
 inputbuffer
 inbuf 	DB 40  ; len
