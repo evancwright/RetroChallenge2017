@@ -122,10 +122,12 @@ namespace TRS80ScreenMaker
                     if (j != 0)
                         cf.CodeText += ",";
 
-                    if (screen[x+j, y+i] == 'X')
+                    if (screen[x + j, y + i] == 'X')
                         cf.CodeText += "0ffh";
                     else
                         cf.CodeText += "20h";
+
+
                 }
                 cf.CodeText += "\r\n";
             }
@@ -138,6 +140,17 @@ namespace TRS80ScreenMaker
             int y = e.Y / HEIGHT_SCALE;
 
             textBox5.Text = "" + x + "," + y;
+
+            for (int i = 0; i < 10; i++)
+            {
+                for (int j = 0; j < 10; j++)
+                {
+                    Console.WriteLine("*");
+                }
+                Console.WriteLine("\r\n");
+            }
         }
+
+
     }
 }
