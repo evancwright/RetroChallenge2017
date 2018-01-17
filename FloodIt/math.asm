@@ -66,9 +66,9 @@ rand
 		jp z,$po?
 		cp RIGHT_BIT
 		jp z,$po? 
-		;shift top
+		;shift
 		ld hl,randhi
-		rr (hl)
+		call shift_hl ; rr (hl) - not 8080
 		; clear the leftmost bit of hi byte
 		ld a,(randhi)
 		ld b,127 
@@ -76,14 +76,14 @@ rand
 		ld (randhi),a
 		jp $x?
 $po?	ld hl,randhi
-		rr (hl)
+		call shift_hl; rr (hl) - not 8080
 
 		;mask on the 1
 		ld a,(randhi)
-		ld b,128
-		add a,b ; stick a 1 on the left 
+		or 128 ; stick a 1 on the left 
 		ld (randhi),a
-$x?		ld (randlo),a
+		
+$x?		ld a,(randlo) ;decrement lo byte for user
 		dec a
 		ld (urand),a
 		ret
@@ -120,6 +120,47 @@ $x?		pop de
 		pop af	; restore #
 		ret
 
-randhi DB 255		
+;shifts the contents of hl
+;a is clobbered
+*MOD
+shift_hl
+	;shift hi into carry
+	or a  ; clear carry
+	ld a,(randhi)
+	and 1
+	ld b,a  ; save right bit
+	ld a,(randhi) ; reload bit
+	rrca ;0F
+	and 127 ;  mask off leftmost 0
+ 	ld (randhi),a
+	;shift lo byte out of carry
+ 	ld a,(randlo)
+	rrca  ; opcode 0F
+	ld c,a ; save a
+	ld a,b
+	sla a
+	sla a
+	sla a
+	sla a
+	sla a 
+	sla a
+	sla a 
+	
+	add a,c
+	ld c,a
+;	ld a,c
+;	and 1 ; isolate carry
+;	sla a
+;	sla a
+;	sla a
+;	sla a
+;	sla a 
+;	sla a
+;	sla a 
+;	or b
+	ld (randlo),a
+	ret
+		
+randhi DB 0AAh		
 randlo DB 255
 urand DB 0  ; output
