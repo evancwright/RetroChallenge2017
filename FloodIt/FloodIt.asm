@@ -7,7 +7,7 @@ CPM EQU 1
 HEIGHT EQU 14
 WIDTH EQU 14
 NUM_SYMBOLS EQU 6
-MAX_TURNS EQU 25
+MAX_TURNS EQU 30
 
 
 	ifdef CPM
@@ -79,6 +79,7 @@ $win?
 ;	ld hl,bell
 ;	call printstr
 	;play again?
+	call print_board
 	ld hl,playagainmsg
 	call printstrcr
 	call get_char
@@ -405,7 +406,6 @@ $lp?
 
 	ld b,6
 	call rmod ; result in a
-	 
 	push de ; save addr
 	ld hl,symbols
 	
@@ -739,7 +739,7 @@ queueIndex DW 0
 wonFlg DB 0
 symbols
 	DB 'abcdef',0	
-outof DB '/25',0h
+outof DB '/30',0h
 oob 
 	DB 'out of bounds.',0h	
 alf 
@@ -762,7 +762,7 @@ title7 DB 'CP/M version by Evan Wright,2018',0h
 helpprmpt
 	DB 'Would you like instructions? (y/n)',0h
 	db 0
-playagainmsg DB 'Play again (y/n)',0	
+playagainmsg DB 'Play again? (y/n)',0	
 gameovermsg DB ' GAME  OVER ',0
 turnstxt  DB 'Turns: ',0
 helpxt1 DB 'The goal of the game is to make the board all the same symbol.',0h	
