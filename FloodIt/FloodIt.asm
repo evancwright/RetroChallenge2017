@@ -137,7 +137,7 @@ $lp?
 	call fill_square
 	call fill_scr_pos
 	push bc
-	ld bc,65000
+	ld bc,2000
 	call delay
 	pop bc
 	;ret	
@@ -598,12 +598,14 @@ fill_scr_pos
 	call print_char
 	ld e,l ; y
 	ld a,e
+	inc a
 	call itoa8
 ;	call print_char
 	ld e,';'
 	call print_char
 	ld e,h  ; x
 	ld a,e
+	inc a
 	call itoa8
 ;	call print_char
 	ld e,'H'
