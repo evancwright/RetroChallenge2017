@@ -136,6 +136,10 @@ $lp?
 	;fill it (de)
 	call fill_square
 	call fill_scr_pos
+	push bc
+	ld bc,65000
+	call delay
+	pop bc
 	;ret	
 	;enqueue its neighbors
 	push de
@@ -576,8 +580,10 @@ restore_cursor
 	call printstr
 	ret
 	
-;moves to de	
+;moves to de
+;d=x,e=y	
 ;fills with (newSym)
+;prints 'ESCh;vH
 fill_scr_pos
 	push af
 	push de
@@ -588,20 +594,24 @@ fill_scr_pos
 	
 	ld e,ESC
 	call print_char
-	ld e,ESC
+	ld e,'['
 	call print_char
-	ld e,h
-	call print_char
+	ld e,l ; y
+	ld a,e
+	call itoa8
+;	call print_char
 	ld e,';'
 	call print_char
-	ld e,l
-	call print_char
+	ld e,h  ; x
+	ld a,e
+	call itoa8
+;	call print_char
 	ld e,'H'
 	call print_char
 	
-	;delete existing char
-	ld e,127
-	call print_char
+;	;delete existing char
+;	ld e,127
+;	call print_char
 	
 	;print new char
 	ld a,(newSym)
@@ -689,6 +699,19 @@ $il?
 	pop bc
 	ret
 
+;bc contains delay length	
+*MOD
+delay
+$lp?
+	dec bc
+	ld a,b
+	cp 0
+	jp nz,$lp?
+	ld a,c
+	cp 0
+	jp nz,$lp?
+$x?	ret
+	
 	ifdef CPM
 *INCLUDE cpm.asm
 	else

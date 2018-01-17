@@ -8,7 +8,7 @@ WCONF EQU 2  ; "write to console function"
 C_READSTR EQU 0Ah
 CR EQU 0Dh
 LF EQU 0Ah
-ESC EQU 1Bh
+ESC EQU 1Bh  ; 27d
 
 ;hl points to the start of the cpm buffer
 ;2nd is length of buffer
