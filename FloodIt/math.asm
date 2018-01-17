@@ -124,6 +124,7 @@ $x?		pop de
 ;a is clobbered
 *MOD
 shift_hl
+	push bc
 	;shift hi into carry
 	or a  ; clear carry
 	ld a,(randhi)
@@ -138,27 +139,18 @@ shift_hl
 	rrca  ; opcode 0F
 	ld c,a ; save a
 	ld a,b
-	sla a
-	sla a
-	sla a
-	sla a
-	sla a 
-	sla a
-	sla a 
+	rla
+	rla 
+	rla 
+	rla 
+	rla 
+	rla 
+	rla 
 	
 	add a,c
 	ld c,a
-;	ld a,c
-;	and 1 ; isolate carry
-;	sla a
-;	sla a
-;	sla a
-;	sla a
-;	sla a 
-;	sla a
-;	sla a 
-;	or b
 	ld (randlo),a
+	pop bc
 	ret
 		
 randhi DB 0AAh		
