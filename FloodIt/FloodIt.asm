@@ -36,6 +36,10 @@ $g?
 	call create_board
 $lp?	
 	call print_board
+	
+	ld hl,ansiwhite
+	call printstr
+
 	call print_turns
 
 $gc?
@@ -60,7 +64,13 @@ $gc?
 	jp $gc?
 $f?
 	
+	ld a,(newSym)
+	call set_txt_clr
+	
 	call start_fill
+	
+
+	
 	call player_wins
 	
 	ld a,(wonFlg)
@@ -610,15 +620,15 @@ fill_scr_pos
 ;	call print_char
 	ld e,'H'
 	call print_char
-	
-;	;delete existing char
-;	ld e,127
-;	call print_char
+  
+;	call set_crs_color
 	
 	;print new char
 	ld a,(newSym)
 	ld e,a
 	call print_char
+	
+;	call end_color
 	
 	pop hl
 	pop de
@@ -669,6 +679,10 @@ print_board
 	
 	ld hl,cpmhome
 	call printstr
+
+;	ld hl,ansiyellow
+;	call printstr
+
 	
 	ld hl,cpmcls
 	call printstr
@@ -683,6 +697,10 @@ $ol?
 $il?	
 	push bc
 	ld a,(hl)
+	
+	
+	call set_txt_clr
+	 
 	ld e,a
 	call print_char
 	inc hl
@@ -713,6 +731,40 @@ $lp?
 	cp 0
 	jp nz,$lp?
 $x?	ret
+
+;changes the text color
+;a is 'a' - 'f' 
+set_txt_clr
+	push hl
+	push de
+	push bc
+	push af
+	push af
+
+	ld hl,ansicolor
+	call printstr
+
+	pop af
+	ld b,48
+	sub a,b
+	
+	ld e,a
+	call print_char
+	
+	ld e,'m'
+	call print_char
+
+	pop af
+	pop bc
+	pop de 
+	pop hl
+	ret
+
+end_color
+	ld hl,ansiendcolor
+	call printstr
+	ret
+
 	
 	ifdef CPM
 *INCLUDE cpm.asm
@@ -770,4 +822,9 @@ helpxt2 DB 'This is done by bucket-filing the top,left symbol.',0h
 helpxt3 DB 'To start a fill, press the key for the symbol to fill with (a-f).',0h
 helpxt4 DB 'The game ends when the board is all one symbol or you turns are used up.',0h
 helpxt5 DB 'Press any key to continue...',0,0h
+ansiyellow DB ESC,'[0;33m',0
+ansiwhite DB ESC,'[0;37m',0
+ansicolor DB ESC,'[0;3',0
+ansiendcolor db ESC,'[0m',0
 	END START
+	
