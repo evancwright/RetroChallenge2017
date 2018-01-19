@@ -111,7 +111,7 @@ printcr
 
 get_char
 	ld a,r		;reload random seed
-	ld (rand),a
+	ld (randlo),a
 	call readline
 	ld a,(inbuf)
 	ret	

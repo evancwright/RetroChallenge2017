@@ -1,10 +1,8 @@
 ;lrs rand for z80
 
-LEFT_BIT equ 16
-RIGHT_BIT equ 4
+LEFT_BIT equ 32
+RIGHT_BIT equ 1
 RAND_MASK equ LEFT_BIT + RIGHT_BIT
-
-
 
 
 ;a times 10 
@@ -38,15 +36,10 @@ rmod
 ;mods a by b		
 *MOD	
 mod 		
-;			push hl
-;			ld hl,moddbg
-;			call printstrcr
-;			pop hl
 			cp a,b
 			jp c,$x?
 			sub a,b
  			jp mod
-;			ld a,5 
 $x?			ret
 
 ;div a by b		
@@ -67,23 +60,30 @@ $x?			ld a,d
 ;returns # in a			
 *MOD
 rand
-		ld a,(random)
+		ld a,(randlo)
 		and a,RAND_MASK
 		cp LEFT_BIT
 		jp z,$po?
 		cp RIGHT_BIT
 		jp z,$po? 
-		ld a,(random) 
-;		srl a	;   just shift (pad with 0)	
-		rra	;  srl is not 8080 compatible
-		and 127d ; clear the leftmost
-;		unset 7 ;  rotate right the clear leftmost bit
+		;shift
+		ld hl,randhi
+		call shift_hl ; rr (hl) - not 8080
+		; clear the leftmost bit of hi byte
+		ld a,(randhi)
+		ld b,127 
+		and a,b ; 01111111
+		ld (randhi),a
 		jp $x?
-$po?	ld a,(random)
-;		srl a	;	pad with a 1
-		rra	;  srl is not 8080 compatible
-		add a,128 ; stick a 1 on the left 
-$x?		ld (random),a
+$po?	ld hl,randhi
+		call shift_hl; rr (hl) - not 8080
+
+		;mask on the 1
+		ld a,(randhi)
+		or 128 ; stick a 1 on the left 
+		ld (randhi),a
+		
+$x?		ld a,(randlo) ;decrement lo byte for user
 		dec a
 		ld (urand),a
 		ret
@@ -98,13 +98,13 @@ itoa8
 		ld a,0	;push a null onto the stack
 		push af
 		ld a,b ; restore a
-$lp?	ld e,a 
+$lp?	ld e,a ; save a copy of a 
 		ld b,10 ; b is number to mod by
 		call mod ; result in a
-		ld b,a 	 ; save a
+		ld b,a 	 ; save a in b
 		add a,030h	 ; convert it to a char
  		push af	 ; push char to print onto the stack
-		ld a,e	; restore a
+		ld a,e	; restore a from e
 		ld b,10 ; b is number to divide by
 		call div ; divide a by 10
 		cp 0
@@ -119,6 +119,40 @@ $x?		pop de
 		pop bc
 		pop af	; restore #
 		ret
+
+;shifts the contents of hl
+;a is clobbered
+*MOD
+shift_hl
+	push bc
+	;shift hi into carry
+	or a  ; clear carry
+	ld a,(randhi)
+	and 1
+	ld b,a  ; save right bit
+	ld a,(randhi) ; reload bit
+	rrca ;0F
+	and 127 ;  mask off leftmost 0
+ 	ld (randhi),a
+	;shift lo byte out of carry
+ 	ld a,(randlo)
+	rrca  ; opcode 0F
+	ld c,a ; save a
+	ld a,b
+	rla
+	rla 
+	rla 
+	rla 
+	rla 
+	rla 
+	rla 
+	
+	add a,c
+	ld c,a
+	ld (randlo),a
+	pop bc
+	ret
 		
-random DB 255
+randhi DB 0AAh		
+randlo DB 255
 urand DB 0  ; output
