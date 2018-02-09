@@ -34,13 +34,20 @@ $h?
 	call print_help
 $g?	
 	call create_board
-$lp?	
 	call print_board
 	
 	ld hl,ansiwhite
 	call printstr
-
+	
 	call print_turns
+$lp?	
+	;this print board is causing the extra
+	;refresh
+	
+	;ld hl,ansiwhite
+	;call printstr
+
+	;call print_turns
 
 $gc?
 	call get_char
@@ -68,9 +75,6 @@ $f?
 	call set_txt_clr
 	
 	call start_fill
-	
-
-	
 	call player_wins
 	
 	ld a,(wonFlg)
@@ -90,6 +94,10 @@ $win?
 ;	call printstr
 	;play again?
 	call print_board
+	
+	ld hl,ansiwhite
+	call printstr
+	
 	ld hl,playagainmsg
 	call printstrcr
 	call get_char
@@ -125,6 +133,8 @@ start_fill
 	ld (turns),a
 	
 	call restore_cursor
+	ld hl,ansiwhite
+	call printstr
 	call print_turns
 	
 $x?	ret	
@@ -519,6 +529,14 @@ print_help
 
 *MOD
 print_turns
+	;move to the coords for printing
+	ld hl,movetoturns
+	call printstr
+	
+;	ld hl,eraseline
+;	call printstr
+	
+	;print the text
 	ld hl,turnstxt
 	call printstr
 	ld a,(turns)
@@ -698,7 +716,6 @@ $il?
 	push bc
 	ld a,(hl)
 	
-	
 	call set_txt_clr
 	 
 	ld e,a
@@ -740,15 +757,25 @@ set_txt_clr
 	push bc
 	push af
 	push af
-
+	;1st part of ANSI escape sequence
 	ld hl,ansicolor
 	call printstr
 
-	pop af
+	
+	;subtract 48 to convert ascii val
+	;to an ascii digit
+	pop af ; get the char
+	cp 97  ; was char upper case? (less than 97)
+	jp c,$uc?
+
 	ld b,48
 	sub a,b
-	
-	ld e,a
+	jp $g?	
+$uc?	
+	;print the color code
+	ld a, '7'  ; white
+
+$g? ld e,a
 	call print_char
 	
 	ld e,'m'
@@ -826,5 +853,7 @@ ansiyellow DB ESC,'[0;33m',0
 ansiwhite DB ESC,'[0;37m',0
 ansicolor DB ESC,'[0;3',0
 ansiendcolor db ESC,'[0m',0
+movetoturns db ESC,'[16;1H',0
+eraseline db ESC,'[K',0 
 	END START
 	
