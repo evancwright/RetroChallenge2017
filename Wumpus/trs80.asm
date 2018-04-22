@@ -5,22 +5,30 @@ BUFSIZE EQU 48
 KEYIN EQU 40H
 SCR_WIDTH EQU 64
 *MOD
+
+;reads a line
+;hl contains end of buffer
+;c = charsRd
+;chardRd contains number of chars read
 readline
 		push bc
 		push de
-		push hl
 ;		call clrbuf
 		ld hl,INBUF
 		ld b,BUFSIZE
 		call KEYIN ; returns len in 'b'
 		ld c,b
+		ld a,b
+		ld (charsRd),a
 		ld b,0
 		add hl,bc
 		ld (hl),0  ; delete cr
-		pop hl
 		pop de
 		pop bc
+		dec hl
 		call printcr
+		ld a,(charsRd)
+		ld c,a
 		ret
 
 
@@ -152,5 +160,7 @@ $lp?
 	pop de
 $x?	ret
 
+ 
 hcur dw 0
+charsRd db 0
 	
